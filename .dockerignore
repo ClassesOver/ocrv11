@@ -1,0 +1,86 @@
+# Python 缓存和编译文件
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# 虚拟环境
+venv/
+env/
+ENV/
+.venv/
+
+# IDE 和编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-*
+.project
+.pydevproject
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# 文档（保留 models/README.md，排除其他）
+/*.md
+CHANGELOG*.md
+DOCKER*.md
+DEPLOYMENT.md
+GUNICORN*.md
+deploy-examples.md
+README.md
+
+# Docker 相关（不需要打包到镜像）
+Dockerfile*
+.dockerignore
+docker-compose*.yml
+
+# 测试脚本（构建后可用脚本测试）
+quickstart.sh
+build.sh
+test_api.sh
+verify_gunicorn.sh
+Makefile
+
+# 测试文件和示例（保留测试图片）
+test_*.py
+tests/
+pytest.ini
+.pytest_cache/
+
+# 日志和临时文件
+*.log
+*.tmp
+*.cache
+logs/
+*.pid
+
+# 操作系统
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 备份文件
+*.bak
+*.old
+*.orig
+*~
+
+
+# 大文件和不必要的模型（根据实际需要调整）
+# 如果某些模型文件不需要，可以在这里排除
+# models/*.old
+# models/*/backup/
+
+# 其他不需要的文件
+*.swp
+.cache/
+.coverage
+htmlcov/

@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  ocr-service:
+    image: ocr:latest
+    container_name: ocr-service
+    restart: unless-stopped
+    ports:
+      - "8078:8078"
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./ocr/:/app/code
+      - ./logs:/app/logs
+      - ./models:/root/.paddlex/official_models

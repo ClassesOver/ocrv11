@@ -1,0 +1,1149 @@
+node {
+  name: "input_1"
+  op: "Placeholder"
+  attr {
+    key: "dtype"
+    value {
+      type: DT_FLOAT
+    }
+  }
+  attr {
+    key: "shape"
+    value {
+      shape {
+        dim {
+          size: -1
+        }
+        dim {
+          size: 224
+        }
+        dim {
+          size: 224
+        }
+        dim {
+          size: 3
+        }
+      }
+    }
+  }
+}
+node {
+  name: "block1_conv1/kernel/read"
+  op: "Identity"
+  input: "block1_conv1/kernel"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block1_conv1/kernel"
+      }
+    }
+  }
+}
+node {
+  name: "block1_conv1/bias/read"
+  op: "Identity"
+  input: "block1_conv1/bias"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block1_conv1/bias"
+      }
+    }
+  }
+}
+node {
+  name: "block1_conv1/convolution"
+  op: "Conv2D"
+  input: "input_1"
+  input: "block1_conv1/kernel/read"
+  attr {
+    key: "padding"
+    value {
+      s: "SAME"
+    }
+  }
+  attr {
+    key: "strides"
+    value {
+      list {
+        i: 1
+        i: 1
+        i: 1
+        i: 1
+      }
+    }
+  }
+}
+node {
+  name: "block1_conv1/BiasAdd"
+  op: "BiasAdd"
+  input: "block1_conv1/convolution"
+  input: "block1_conv1/bias/read"
+}
+node {
+  name: "block1_conv1/Relu"
+  op: "Relu"
+  input: "block1_conv1/BiasAdd"
+}
+node {
+  name: "block1_conv2/kernel/read"
+  op: "Identity"
+  input: "block1_conv2/kernel"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block1_conv2/kernel"
+      }
+    }
+  }
+}
+node {
+  name: "block1_conv2/bias/read"
+  op: "Identity"
+  input: "block1_conv2/bias"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block1_conv2/bias"
+      }
+    }
+  }
+}
+node {
+  name: "block1_conv2/convolution"
+  op: "Conv2D"
+  input: "block1_conv1/Relu"
+  input: "block1_conv2/kernel/read"
+  attr {
+    key: "padding"
+    value {
+      s: "SAME"
+    }
+  }
+  attr {
+    key: "strides"
+    value {
+      list {
+        i: 1
+        i: 1
+        i: 1
+        i: 1
+      }
+    }
+  }
+}
+node {
+  name: "block1_conv2/BiasAdd"
+  op: "BiasAdd"
+  input: "block1_conv2/convolution"
+  input: "block1_conv2/bias/read"
+}
+node {
+  name: "block1_conv2/Relu"
+  op: "Relu"
+  input: "block1_conv2/BiasAdd"
+}
+node {
+  name: "block1_pool/MaxPool"
+  op: "MaxPool"
+  input: "block1_conv2/Relu"
+  attr {
+    key: "ksize"
+    value {
+      list {
+        i: 1
+        i: 2
+        i: 2
+        i: 1
+      }
+    }
+  }
+  attr {
+    key: "padding"
+    value {
+      s: "VALID"
+    }
+  }
+  attr {
+    key: "strides"
+    value {
+      list {
+        i: 1
+        i: 2
+        i: 2
+        i: 1
+      }
+    }
+  }
+}
+node {
+  name: "block2_conv1/kernel/read"
+  op: "Identity"
+  input: "block2_conv1/kernel"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block2_conv1/kernel"
+      }
+    }
+  }
+}
+node {
+  name: "block2_conv1/bias/read"
+  op: "Identity"
+  input: "block2_conv1/bias"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block2_conv1/bias"
+      }
+    }
+  }
+}
+node {
+  name: "block2_conv1/convolution"
+  op: "Conv2D"
+  input: "block1_pool/MaxPool"
+  input: "block2_conv1/kernel/read"
+  attr {
+    key: "padding"
+    value {
+      s: "SAME"
+    }
+  }
+  attr {
+    key: "strides"
+    value {
+      list {
+        i: 1
+        i: 1
+        i: 1
+        i: 1
+      }
+    }
+  }
+}
+node {
+  name: "block2_conv1/BiasAdd"
+  op: "BiasAdd"
+  input: "block2_conv1/convolution"
+  input: "block2_conv1/bias/read"
+}
+node {
+  name: "block2_conv1/Relu"
+  op: "Relu"
+  input: "block2_conv1/BiasAdd"
+}
+node {
+  name: "block2_conv2/kernel/read"
+  op: "Identity"
+  input: "block2_conv2/kernel"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block2_conv2/kernel"
+      }
+    }
+  }
+}
+node {
+  name: "block2_conv2/bias/read"
+  op: "Identity"
+  input: "block2_conv2/bias"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block2_conv2/bias"
+      }
+    }
+  }
+}
+node {
+  name: "block2_conv2/convolution"
+  op: "Conv2D"
+  input: "block2_conv1/Relu"
+  input: "block2_conv2/kernel/read"
+  attr {
+    key: "padding"
+    value {
+      s: "SAME"
+    }
+  }
+  attr {
+    key: "strides"
+    value {
+      list {
+        i: 1
+        i: 1
+        i: 1
+        i: 1
+      }
+    }
+  }
+}
+node {
+  name: "block2_conv2/BiasAdd"
+  op: "BiasAdd"
+  input: "block2_conv2/convolution"
+  input: "block2_conv2/bias/read"
+}
+node {
+  name: "block2_conv2/Relu"
+  op: "Relu"
+  input: "block2_conv2/BiasAdd"
+}
+node {
+  name: "block2_pool/MaxPool"
+  op: "MaxPool"
+  input: "block2_conv2/Relu"
+  attr {
+    key: "ksize"
+    value {
+      list {
+        i: 1
+        i: 2
+        i: 2
+        i: 1
+      }
+    }
+  }
+  attr {
+    key: "padding"
+    value {
+      s: "VALID"
+    }
+  }
+  attr {
+    key: "strides"
+    value {
+      list {
+        i: 1
+        i: 2
+        i: 2
+        i: 1
+      }
+    }
+  }
+}
+node {
+  name: "block3_conv1/kernel/read"
+  op: "Identity"
+  input: "block3_conv1/kernel"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block3_conv1/kernel"
+      }
+    }
+  }
+}
+node {
+  name: "block3_conv1/bias/read"
+  op: "Identity"
+  input: "block3_conv1/bias"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block3_conv1/bias"
+      }
+    }
+  }
+}
+node {
+  name: "block3_conv1/convolution"
+  op: "Conv2D"
+  input: "block2_pool/MaxPool"
+  input: "block3_conv1/kernel/read"
+  attr {
+    key: "padding"
+    value {
+      s: "SAME"
+    }
+  }
+  attr {
+    key: "strides"
+    value {
+      list {
+        i: 1
+        i: 1
+        i: 1
+        i: 1
+      }
+    }
+  }
+}
+node {
+  name: "block3_conv1/BiasAdd"
+  op: "BiasAdd"
+  input: "block3_conv1/convolution"
+  input: "block3_conv1/bias/read"
+}
+node {
+  name: "block3_conv1/Relu"
+  op: "Relu"
+  input: "block3_conv1/BiasAdd"
+}
+node {
+  name: "block3_conv2/kernel/read"
+  op: "Identity"
+  input: "block3_conv2/kernel"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block3_conv2/kernel"
+      }
+    }
+  }
+}
+node {
+  name: "block3_conv2/bias/read"
+  op: "Identity"
+  input: "block3_conv2/bias"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block3_conv2/bias"
+      }
+    }
+  }
+}
+node {
+  name: "block3_conv2/convolution"
+  op: "Conv2D"
+  input: "block3_conv1/Relu"
+  input: "block3_conv2/kernel/read"
+  attr {
+    key: "padding"
+    value {
+      s: "SAME"
+    }
+  }
+  attr {
+    key: "strides"
+    value {
+      list {
+        i: 1
+        i: 1
+        i: 1
+        i: 1
+      }
+    }
+  }
+}
+node {
+  name: "block3_conv2/BiasAdd"
+  op: "BiasAdd"
+  input: "block3_conv2/convolution"
+  input: "block3_conv2/bias/read"
+}
+node {
+  name: "block3_conv2/Relu"
+  op: "Relu"
+  input: "block3_conv2/BiasAdd"
+}
+node {
+  name: "block3_conv3/kernel/read"
+  op: "Identity"
+  input: "block3_conv3/kernel"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block3_conv3/kernel"
+      }
+    }
+  }
+}
+node {
+  name: "block3_conv3/bias/read"
+  op: "Identity"
+  input: "block3_conv3/bias"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block3_conv3/bias"
+      }
+    }
+  }
+}
+node {
+  name: "block3_conv3/convolution"
+  op: "Conv2D"
+  input: "block3_conv2/Relu"
+  input: "block3_conv3/kernel/read"
+  attr {
+    key: "padding"
+    value {
+      s: "SAME"
+    }
+  }
+  attr {
+    key: "strides"
+    value {
+      list {
+        i: 1
+        i: 1
+        i: 1
+        i: 1
+      }
+    }
+  }
+}
+node {
+  name: "block3_conv3/BiasAdd"
+  op: "BiasAdd"
+  input: "block3_conv3/convolution"
+  input: "block3_conv3/bias/read"
+}
+node {
+  name: "block3_conv3/Relu"
+  op: "Relu"
+  input: "block3_conv3/BiasAdd"
+}
+node {
+  name: "block3_pool/MaxPool"
+  op: "MaxPool"
+  input: "block3_conv3/Relu"
+  attr {
+    key: "ksize"
+    value {
+      list {
+        i: 1
+        i: 2
+        i: 2
+        i: 1
+      }
+    }
+  }
+  attr {
+    key: "padding"
+    value {
+      s: "VALID"
+    }
+  }
+  attr {
+    key: "strides"
+    value {
+      list {
+        i: 1
+        i: 2
+        i: 2
+        i: 1
+      }
+    }
+  }
+}
+node {
+  name: "block4_conv1/kernel/read"
+  op: "Identity"
+  input: "block4_conv1/kernel"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block4_conv1/kernel"
+      }
+    }
+  }
+}
+node {
+  name: "block4_conv1/bias/read"
+  op: "Identity"
+  input: "block4_conv1/bias"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block4_conv1/bias"
+      }
+    }
+  }
+}
+node {
+  name: "block4_conv1/convolution"
+  op: "Conv2D"
+  input: "block3_pool/MaxPool"
+  input: "block4_conv1/kernel/read"
+  attr {
+    key: "padding"
+    value {
+      s: "SAME"
+    }
+  }
+  attr {
+    key: "strides"
+    value {
+      list {
+        i: 1
+        i: 1
+        i: 1
+        i: 1
+      }
+    }
+  }
+}
+node {
+  name: "block4_conv1/BiasAdd"
+  op: "BiasAdd"
+  input: "block4_conv1/convolution"
+  input: "block4_conv1/bias/read"
+}
+node {
+  name: "block4_conv1/Relu"
+  op: "Relu"
+  input: "block4_conv1/BiasAdd"
+}
+node {
+  name: "block4_conv2/kernel/read"
+  op: "Identity"
+  input: "block4_conv2/kernel"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block4_conv2/kernel"
+      }
+    }
+  }
+}
+node {
+  name: "block4_conv2/bias/read"
+  op: "Identity"
+  input: "block4_conv2/bias"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block4_conv2/bias"
+      }
+    }
+  }
+}
+node {
+  name: "block4_conv2/convolution"
+  op: "Conv2D"
+  input: "block4_conv1/Relu"
+  input: "block4_conv2/kernel/read"
+  attr {
+    key: "padding"
+    value {
+      s: "SAME"
+    }
+  }
+  attr {
+    key: "strides"
+    value {
+      list {
+        i: 1
+        i: 1
+        i: 1
+        i: 1
+      }
+    }
+  }
+}
+node {
+  name: "block4_conv2/BiasAdd"
+  op: "BiasAdd"
+  input: "block4_conv2/convolution"
+  input: "block4_conv2/bias/read"
+}
+node {
+  name: "block4_conv2/Relu"
+  op: "Relu"
+  input: "block4_conv2/BiasAdd"
+}
+node {
+  name: "block4_conv3/kernel/read"
+  op: "Identity"
+  input: "block4_conv3/kernel"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block4_conv3/kernel"
+      }
+    }
+  }
+}
+node {
+  name: "block4_conv3/bias/read"
+  op: "Identity"
+  input: "block4_conv3/bias"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block4_conv3/bias"
+      }
+    }
+  }
+}
+node {
+  name: "block4_conv3/convolution"
+  op: "Conv2D"
+  input: "block4_conv2/Relu"
+  input: "block4_conv3/kernel/read"
+  attr {
+    key: "padding"
+    value {
+      s: "SAME"
+    }
+  }
+  attr {
+    key: "strides"
+    value {
+      list {
+        i: 1
+        i: 1
+        i: 1
+        i: 1
+      }
+    }
+  }
+}
+node {
+  name: "block4_conv3/BiasAdd"
+  op: "BiasAdd"
+  input: "block4_conv3/convolution"
+  input: "block4_conv3/bias/read"
+}
+node {
+  name: "block4_conv3/Relu"
+  op: "Relu"
+  input: "block4_conv3/BiasAdd"
+}
+node {
+  name: "block4_pool/MaxPool"
+  op: "MaxPool"
+  input: "block4_conv3/Relu"
+  attr {
+    key: "ksize"
+    value {
+      list {
+        i: 1
+        i: 2
+        i: 2
+        i: 1
+      }
+    }
+  }
+  attr {
+    key: "padding"
+    value {
+      s: "VALID"
+    }
+  }
+  attr {
+    key: "strides"
+    value {
+      list {
+        i: 1
+        i: 2
+        i: 2
+        i: 1
+      }
+    }
+  }
+}
+node {
+  name: "block5_conv1/kernel/read"
+  op: "Identity"
+  input: "block5_conv1/kernel"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block5_conv1/kernel"
+      }
+    }
+  }
+}
+node {
+  name: "block5_conv1/bias/read"
+  op: "Identity"
+  input: "block5_conv1/bias"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block5_conv1/bias"
+      }
+    }
+  }
+}
+node {
+  name: "block5_conv1/convolution"
+  op: "Conv2D"
+  input: "block4_pool/MaxPool"
+  input: "block5_conv1/kernel/read"
+  attr {
+    key: "padding"
+    value {
+      s: "SAME"
+    }
+  }
+  attr {
+    key: "strides"
+    value {
+      list {
+        i: 1
+        i: 1
+        i: 1
+        i: 1
+      }
+    }
+  }
+}
+node {
+  name: "block5_conv1/BiasAdd"
+  op: "BiasAdd"
+  input: "block5_conv1/convolution"
+  input: "block5_conv1/bias/read"
+}
+node {
+  name: "block5_conv1/Relu"
+  op: "Relu"
+  input: "block5_conv1/BiasAdd"
+}
+node {
+  name: "block5_conv2/kernel/read"
+  op: "Identity"
+  input: "block5_conv2/kernel"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block5_conv2/kernel"
+      }
+    }
+  }
+}
+node {
+  name: "block5_conv2/bias/read"
+  op: "Identity"
+  input: "block5_conv2/bias"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block5_conv2/bias"
+      }
+    }
+  }
+}
+node {
+  name: "block5_conv2/convolution"
+  op: "Conv2D"
+  input: "block5_conv1/Relu"
+  input: "block5_conv2/kernel/read"
+  attr {
+    key: "padding"
+    value {
+      s: "SAME"
+    }
+  }
+  attr {
+    key: "strides"
+    value {
+      list {
+        i: 1
+        i: 1
+        i: 1
+        i: 1
+      }
+    }
+  }
+}
+node {
+  name: "block5_conv2/BiasAdd"
+  op: "BiasAdd"
+  input: "block5_conv2/convolution"
+  input: "block5_conv2/bias/read"
+}
+node {
+  name: "block5_conv2/Relu"
+  op: "Relu"
+  input: "block5_conv2/BiasAdd"
+}
+node {
+  name: "block5_conv3/kernel/read"
+  op: "Identity"
+  input: "block5_conv3/kernel"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block5_conv3/kernel"
+      }
+    }
+  }
+}
+node {
+  name: "block5_conv3/bias/read"
+  op: "Identity"
+  input: "block5_conv3/bias"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@block5_conv3/bias"
+      }
+    }
+  }
+}
+node {
+  name: "block5_conv3/convolution"
+  op: "Conv2D"
+  input: "block5_conv2/Relu"
+  input: "block5_conv3/kernel/read"
+  attr {
+    key: "padding"
+    value {
+      s: "SAME"
+    }
+  }
+  attr {
+    key: "strides"
+    value {
+      list {
+        i: 1
+        i: 1
+        i: 1
+        i: 1
+      }
+    }
+  }
+}
+node {
+  name: "block5_conv3/BiasAdd"
+  op: "BiasAdd"
+  input: "block5_conv3/convolution"
+  input: "block5_conv3/bias/read"
+}
+node {
+  name: "block5_conv3/Relu"
+  op: "Relu"
+  input: "block5_conv3/BiasAdd"
+}
+node {
+  name: "block5_pool/MaxPool"
+  op: "MaxPool"
+  input: "block5_conv3/Relu"
+  attr {
+    key: "ksize"
+    value {
+      list {
+        i: 1
+        i: 2
+        i: 2
+        i: 1
+      }
+    }
+  }
+  attr {
+    key: "padding"
+    value {
+      s: "VALID"
+    }
+  }
+  attr {
+    key: "strides"
+    value {
+      list {
+        i: 1
+        i: 2
+        i: 2
+        i: 1
+      }
+    }
+  }
+}
+
+
+node {
+  name: "flatten/Reshape"
+  op: "Flatten"
+  input: "block5_pool/MaxPool"
+  input: "flatten/stack"
+}
+node {
+  name: "fc1/kernel/read"
+  op: "Identity"
+  input: "fc1/kernel"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@fc1/kernel"
+      }
+    }
+  }
+}
+node {
+  name: "fc1/bias/read"
+  op: "Identity"
+  input: "fc1/bias"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@fc1/bias"
+      }
+    }
+  }
+}
+node {
+  name: "fc1/MatMul"
+  op: "MatMul"
+  input: "flatten/Reshape"
+  input: "fc1/kernel/read"
+  attr {
+    key: "transpose_a"
+    value {
+      b: false
+    }
+  }
+  attr {
+    key: "transpose_b"
+    value {
+      b: false
+    }
+  }
+}
+node {
+  name: "fc1/BiasAdd"
+  op: "BiasAdd"
+  input: "fc1/MatMul"
+  input: "fc1/bias/read"
+}
+node {
+  name: "fc1/Relu"
+  op: "Relu"
+  input: "fc1/BiasAdd"
+}
+node {
+  name: "fc2/kernel/read"
+  op: "Identity"
+  input: "fc2/kernel"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@fc2/kernel"
+      }
+    }
+  }
+}
+node {
+  name: "fc2/bias/read"
+  op: "Identity"
+  input: "fc2/bias"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@fc2/bias"
+      }
+    }
+  }
+}
+node {
+  name: "fc2/MatMul"
+  op: "MatMul"
+  input: "fc1/Relu"
+  input: "fc2/kernel/read"
+  attr {
+    key: "transpose_a"
+    value {
+      b: false
+    }
+  }
+  attr {
+    key: "transpose_b"
+    value {
+      b: false
+    }
+  }
+}
+node {
+  name: "fc2/BiasAdd"
+  op: "BiasAdd"
+  input: "fc2/MatMul"
+  input: "fc2/bias/read"
+}
+node {
+  name: "fc2/Relu"
+  op: "Relu"
+  input: "fc2/BiasAdd"
+}
+node {
+  name: "predictions/kernel/read"
+  op: "Identity"
+  input: "predictions/kernel"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@predictions/kernel"
+      }
+    }
+  }
+}
+node {
+  name: "predictions/bias/read"
+  op: "Identity"
+  input: "predictions/bias"
+  attr {
+    key: "_class"
+    value {
+      list {
+        s: "loc:@predictions/bias"
+      }
+    }
+  }
+}
+node {
+  name: "predictions/MatMul"
+  op: "MatMul"
+  input: "fc2/Relu"
+  input: "predictions/kernel/read"
+  attr {
+    key: "transpose_a"
+    value {
+      b: false
+    }
+  }
+  attr {
+    key: "transpose_b"
+    value {
+      b: false
+    }
+  }
+}
+node {
+  name: "predictions/BiasAdd"
+  op: "BiasAdd"
+  input: "predictions/MatMul"
+  input: "predictions/bias/read"
+}
+node {
+  name: "predictions/Softmax"
+  op: "Softmax"
+  input: "predictions/BiasAdd"
+}
+library {
+}
