@@ -1,3 +1,5 @@
 *.onnx filter=lfs diff=lfs merge=lfs -text
 *.pt filter=lfs diff=lfs merge=lfs -text
-*..safetensors filter=lfs diff=lfs merge=lfs -text
+*.safetensors filter=lfs diff=lfs merge=lfs -text
+models/table_transformer/models--microsoft--table-transformer-detection/blobs/8f1aa73170102c038d40155e2734b343bf07e0fe12594228a8590943b01dccf7 filter=lfs diff=lfs merge=lfs -text
+models/table_transformer/models--microsoft--table-transformer-structure-recognition-v1.1-all/blobs/9df416575a3a36ebd0129342d4f597f14d6e5170268f3d52d28584ab4466a501 filter=lfs diff=lfs merge=lfs -text
