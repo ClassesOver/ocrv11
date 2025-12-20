@@ -499,63 +499,6 @@ class TextOcrModel(object):
         except:
             return 0
     
-    def extract_table_rows(self, table_result):
-        """
-        从表格识别结果中提取行文本列表（便捷方法）
-        
-        Args:
-            table_result: table_recognize返回的结果字典
-            
-        Returns:
-            行文本列表，每行是一个文本列表（单元格文本）
-        """
-        try:
-            if not isinstance(table_result, dict):
-                return []
-            
-            rows = table_result.get('rows', [])
-            if not rows:
-                return []
-            
-            # 提取每行的文本
-            row_texts = []
-            for row in rows:
-                if isinstance(row, dict) and 'cells' in row:
-                    # 如果row是字典且包含cells字段（extract_table返回的格式）
-                    texts = []
-                    for cell in row['cells']:
-                        if isinstance(cell, dict):
-                            text = cell.get('text', '')
-                        elif isinstance(cell, str):
-                            text = cell
-                        else:
-                            text = str(cell)
-                        texts.append(text)
-                    row_texts.append(texts)
-                elif isinstance(row, list):
-                    # 如果row是单元格列表
-                    texts = []
-                    for cell in row:
-                        if isinstance(cell, dict):
-                            text = cell.get('text', '')
-                        elif isinstance(cell, str):
-                            text = cell
-                        else:
-                            text = str(cell)
-                        texts.append(text)
-                    row_texts.append(texts)
-                elif isinstance(row, (list, tuple)):
-                    # 如果row直接是文本列表
-                    row_texts.append([str(item) for item in row])
-                else:
-                    row_texts.append([str(row)])
-            
-            return row_texts
-            
-        except Exception as e:
-            logger.error(f"提取表格行文本错误: {e}", exc_info=True)
-            return []
-    
     def ocr_table_cells(self, img):
         """
         表格识别并批量OCR识别单元格（封装table_recognize）

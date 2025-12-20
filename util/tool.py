@@ -268,6 +268,41 @@ def get_page(string):
         return '-1/-1'
 
 
+def normalize_invoice_type(invoice_type: str) -> str:
+    """
+    将发票类型代码标准化
+    例如：CZ-EI-33 -> CZEI033
+    
+    Args:
+        invoice_type: 发票类型代码，如 "CZ-EI-33" 或 "CZEI033"
+        
+    Returns:
+        标准化后的发票类型代码，如 "CZEI033"
+    """
+    if not invoice_type:
+        return ''
+    
+    try:
+        # 移除所有连字符和空格
+        normalized = invoice_type.replace('-', '').replace(' ', '').upper()
+        
+        # 使用正则表达式分离字母和数字部分
+        # 匹配模式：字母部分 + 数字部分
+        match = re.match(r'^([A-Z]+)(\d+)$', normalized)
+        if match:
+            letters = match.group(1)  # 字母部分，如 "CZEI"
+            numbers = match.group(2)  # 数字部分，如 "33"
+            # 将数字部分补零到3位
+            numbers_padded = numbers.zfill(3)  # "33" -> "033"
+            return letters + numbers_padded
+        else:
+            # 如果不匹配预期格式，返回去除连字符和空格后的结果
+            return normalized
+    except Exception:
+        # 如果处理失败，返回原值
+        return invoice_type
+
+
 def get_date(string):
     """提取日期（优化版，使用预编译正则和映射表）"""
     try:

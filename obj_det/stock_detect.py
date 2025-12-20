@@ -118,9 +118,11 @@ def stock_detection(img_numpy, stock=None, context=None, saveImage=False):
     入库单检测与识别（材料/总务入库单）
     参考 vat_detect 的 ultralytics 推理流程，批量 OCR 提升吞吐。
     """
+    logger.debug("开始入库单检测（stock_v1）")
     if stock is None:
         stock = {}
     if context is None:
+        logger.warning("OCR context 未提供，返回空结果")
         return stock
 
     results = model.predict(
@@ -132,6 +134,7 @@ def stock_detection(img_numpy, stock=None, context=None, saveImage=False):
     )
 
     names = model.names
+    # logger.debug(f"模型类别映射 (model.names): {names}")
     im0 = img_numpy
     ocr = context.ocr
     batch_ocr = context.batch_ocr
@@ -147,15 +150,18 @@ def stock_detection(img_numpy, stock=None, context=None, saveImage=False):
             label_confidences = {}  # 保存每个标签的置信度
             converter_keys = set(converter.keys())
 
+            logger.debug(f"检测到 {len(boxes)} 个检测框")
             for box in boxes:
                 xyxy = box.xyxy[0].cpu().numpy()
                 cls = int(box.cls[0].item())
                 conf = float(box.conf[0].item())  # 获取置信度
                 label = names[cls]
                 if label not in converter_keys:
+                    logger.debug(f"跳过未知标签: {label}")
                     continue
 
                 x1, y1, x2, y2 = [int(v) for v in xyxy]
+                logger.debug(f"检测到标签: {label}, 置信度: {conf:.3f}, 位置: ({x1}, {y1}, {x2}, {y2})")
 
                 if saveImage:
                     stock_fp = os.path.join('images', 'stock_v1')
@@ -167,6 +173,7 @@ def stock_detection(img_numpy, stock=None, context=None, saveImage=False):
                 label_confidences[label] = conf  # 保存置信度
 
             if labels:
+                logger.info(f"检测到 {len(labels)} 个有效标签: {list(labels.keys())}")
                 labels = {key: im0[v[0]:v[1], v[2]:v[3]] for key, v in labels.items()}
 
                 # 批量 OCR，跳过无需 OCR 的标签
@@ -174,31 +181,40 @@ def stock_detection(img_numpy, stock=None, context=None, saveImage=False):
                 ocr_images = []
                 for label, img_region in labels.items():
                     if label in SKIP_OCR_LABELS:
+                        logger.debug(f"跳过 OCR 标签: {label}")
                         continue
                     ocr_label_keys.append(label)
                     ocr_images.append(img_region)
 
                 ocr_results_dict = {}
                 if ocr_images:
+                    logger.debug(f"开始批量 OCR，共 {len(ocr_images)} 个区域")
                     batch_results = batch_ocr(ocr_images)
                     for label, text in zip(ocr_label_keys, batch_results):
                         ocr_results_dict[label] = text
+                        logger.debug(f"OCR 结果 [{label}]: {text[:50] if text else ''}")
 
                 # 处理二维码
                 if 'qrcode' in labels:
                     try:
+                        logger.debug("开始处理二维码")
                         qr_text = get_qrcode_data(Image.fromarray(labels['qrcode']))
                         if qr_text:
                             stock['qrcode'] = qr_text
                             stock['qrcode_conf'] = label_confidences.get('qrcode', 0.0)
+                            logger.info(f"二维码识别成功: {qr_text}")
                             detected = True
-                    except Exception:
-                        pass
-
+                    except Exception as e:
+                        logger.warning(f"二维码识别失败: {e}")
+                title = ocr_results_dict.get('title')
+                if not title or not ('总务' in title or '结算' in title):
+                    logger.info(f"标题不匹配，跳过处理: {title}")
+                    return stock
                 # 处理 OCR 结果
                 for label, text in ocr_results_dict.items():
                     processed = _process_label_text(label, text)
                     stock[converter[label]] = processed
+                    logger.debug(f"处理标签 [{label}]: {text} -> {processed}")
                     detected = True
 
                 # SKIP_OCR_LABELS 中的标签：保存置信度
@@ -214,29 +230,42 @@ def stock_detection(img_numpy, stock=None, context=None, saveImage=False):
                         # 只有置信度 >= 阈值时才设置 'detected'
                         if conf >= CONFIDENCE_THRESHOLD:
                             stock[converter[label]] = 'detected'
+                            logger.debug(f"标签 [{label}] 置信度 {conf:.3f} >= 阈值 {CONFIDENCE_THRESHOLD}，设置为 detected")
                             detected = True
+                        else:
+                            logger.debug(f"标签 [{label}] 置信度 {conf:.3f} < 阈值 {CONFIDENCE_THRESHOLD}，仅保存置信度")
  
                 # 处理 line 标签：进行表格识别
                 if 'line' in labels:
                     try:
+                        logger.info("开始处理 line 标签（表格识别）")
                         # 对line区域进行表格识别和OCR
                         line_img = labels['line']
-                        if label_confidences.get('line', 0.0) > CONFIDENCE_THRESHOLD:
+                        line_conf = label_confidences.get('line', 0.0)
+                        if line_conf > CONFIDENCE_THRESHOLD:
+                            logger.debug(f"line 置信度 {line_conf:.3f} > 阈值 {CONFIDENCE_THRESHOLD}，开始表格识别和OCR")
                             rows = context.ocr_table_cells(line_img)
+                            logger.info(f"表格识别成功，共 {len(rows)} 行")
                         else:
+                            logger.debug(f"line 置信度 {line_conf:.3f} <= 阈值 {CONFIDENCE_THRESHOLD}，跳过表格识别")
                             rows = []
-                        stock['line_conf'] = label_confidences.get('line', 0.0)
+                        stock['line_conf'] = line_conf
                         stock['line'] = rows
                         detected = True
                     except Exception as e:
-                        logger.error(f"表格识别错误: {e}")
+                        logger.error(f"表格识别错误: {e}", exc_info=True)
                         # 如果表格识别失败，且置信度 >= 阈值，回退到简单标记
                         # 但置信度始终设置
                         line_conf = label_confidences.get('line', 0.0)
                         stock['line_conf'] = line_conf
                         if line_conf >= CONFIDENCE_THRESHOLD:
                             stock[converter['line']] = 'detected'
+                            logger.warning(f"表格识别失败，回退到 detected 标记，置信度: {line_conf:.3f}")
                             detected = True
+        else:
+            logger.debug("未检测到任何检测框")
+    else:
+        logger.debug("模型预测结果为空")
 
     if detected:
         # 补齐关键字段的默认值，方便上层消费
@@ -251,7 +280,10 @@ def stock_detection(img_numpy, stock=None, context=None, saveImage=False):
         title = stock.get('title') or ''
         if '总务' in title or '结算' in title:
             stock['_stock_v1_detected'] = True
+            logger.info(f"识别为总务/结算入库单，标题: {title}")
         else:
             stock['_stock_v1_detected'] = False
+    else:
+        logger.warning("未检测到有效的入库单信息")
     return stock
 
