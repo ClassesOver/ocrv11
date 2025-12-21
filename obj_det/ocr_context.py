@@ -15,10 +15,20 @@ import os
 class TextRecognition(_TextRecognition):
 
     def _get_extra_paddlex_predictor_init_args(self):
-        res =  super()._get_extra_paddlex_predictor_init_args()
+        res = super()._get_extra_paddlex_predictor_init_args()
+        # 获取 CPU 核心数用于 HPI 配置
+        try:
+            import multiprocessing
+            cpu_count = multiprocessing.cpu_count()
+        except:
+            cpu_count = 4  # 默认值
+        
         res.update({
             'hpi_config': {
                 'backend': 'onnxruntime',
+                'backend_config': {
+                    'cpu_num_threads': max(10, min(cpu_count, 16))
+                }
             }
         })
         return res
@@ -41,8 +51,44 @@ class TextOcrModel(object):
         enable_hpi_env = os.getenv("PADDLE_ENABLE_HPI", "").strip().lower()
         enable_hpi = is_linux and enable_hpi_env not in ["0", "false", "no"]
 
+        # 统一获取 CPU 核心数（避免重复调用）
+        try:
+            import multiprocessing
+            cpu_count = multiprocessing.cpu_count()
+        except:
+            cpu_count = 4  # 默认值，用于后续计算
+            logger.warning("无法获取 CPU 核心数，使用默认值 4")
+
         # 批处理配置：批量大小（可在 config 中覆盖）
-        self._batch_size = getattr(config, "OCR_BATCH_SIZE", 16)  # 默认批量大小
+        # CPU 环境推荐配置：
+        #   - 根据 CPU 核心数动态调整：batch_size = cpu_count * 2
+        #   - 但需要设置合理范围：最小 4，最大 32（避免内存溢出）
+        # GPU 环境推荐配置：batch_size = 16-32
+        # 注意：batch_size 过大会导致内存占用增加，需要根据实际内存情况调整
+        if hasattr(config, "OCR_BATCH_SIZE") and config.OCR_BATCH_SIZE is not None:
+            # 使用手动配置的值
+            self._batch_size = config.OCR_BATCH_SIZE
+            logger.info(f"使用手动配置的 batch_size={self._batch_size}")
+        else:
+            # 根据设备类型设置默认 batch_size
+            if use_gpu:
+                self._batch_size = 16  # GPU 默认值
+            else:
+                # CPU 环境：根据 CPU 核心数动态调整
+                # batch_size = cpu_count * 2，但限制在合理范围内
+                self._batch_size = max(4, min(cpu_count * 2, 32))
+                logger.info(f"根据 CPU 核心数({cpu_count})自动设置 batch_size={self._batch_size}")
+        
+        # 验证 batch_size 合理性（无论手动配置还是自动配置都需要验证）
+        original_batch_size = self._batch_size
+        if self._batch_size < 1:
+            logger.warning(f"batch_size={self._batch_size} 过小，调整为 4")
+            self._batch_size = 4
+        elif self._batch_size > 64:
+            logger.warning(f"batch_size={self._batch_size} 过大，调整为 32（建议范围：4-32）")
+            self._batch_size = 32
+        elif original_batch_size != self._batch_size:
+            logger.info(f"batch_size 已从 {original_batch_size} 调整为 {self._batch_size}")
         
         # MKLDNN 配置：Linux 平台下通过环境变量控制（默认：CPU 模式下启用）
         enable_mkldnn_env = os.getenv("PADDLE_ENABLE_MKLDNN", "").strip().lower()
@@ -53,27 +99,37 @@ class TextOcrModel(object):
             # 默认：CPU 模式下启用，GPU 模式下禁用
             enable_mkldnn = not use_gpu and is_linux
 
-        try:
-            self._paddle_ocr_instance = TextRecognition(
-                model_name=model_name,
-                device='gpu' if use_gpu else 'cpu',
-                enable_mkldnn=enable_mkldnn,
-                enable_hpi=enable_hpi,
-                cpu_threads = max(self._batch_size, 10),
-            )
-            logger.info(f"PaddleOCR 初始化成功: model={model_name}, device={'gpu' if use_gpu else 'cpu'}, hpi={enable_hpi}, mkldnn={enable_mkldnn}")
-        except Exception as e:
-            logger.error(f"PaddleOCR 初始化失败: {e}")
-            # 如果失败，尝试禁用 HPI 和 MKLDNN 重新初始化
-            self._paddle_ocr_instance = TextRecognition(
-                model_name=model_name,
-                device='gpu' if use_gpu else 'cpu',
-                enable_mkldnn=False,
-                enable_hpi=False,  # 失败后禁用 HPI
-                cpu_threads = max(self._batch_size, 10)
-            )
-            logger.warning("已回退到默认配置（禁用 HPI 和 MKLDNN）")
+        # CPU 线程数配置优化：
+        # CPU 环境：推荐设置为 CPU 核心数，但不超过 batch_size * 2，最小为 4
+        # GPU 环境：使用较少线程（8），避免占用过多 CPU 资源
+        if use_gpu:
+            cpu_threads = 8  # GPU 模式下使用较少线程
+        else:
+            # CPU 线程数策略：
+            # 1. 优先使用 CPU 核心数（充分利用多核）
+            # 2. 但不超过 batch_size * 2（避免过度并行导致上下文切换开销）
+            # 3. 最小为 4（保证基本性能）
+            # 4. 最大为 32（避免过多线程导致性能下降）
+            cpu_threads = max(4, min(cpu_count, self._batch_size * 2, 32))
+            logger.info(f"根据 CPU 核心数({cpu_count})和 batch_size({self._batch_size})设置 cpu_threads={cpu_threads}")
 
+        self._paddle_ocr_instance = TextRecognition(
+            model_name=model_name,
+            device='gpu' if use_gpu else 'cpu',
+            enable_mkldnn=enable_mkldnn,
+            enable_hpi=enable_hpi,
+            cpu_threads=cpu_threads,
+        )
+        logger.info(
+            f"PaddleOCR 初始化成功: model={model_name}, device={'gpu' if use_gpu else 'cpu'}, batch_size={self._batch_size}, cpu_threads={cpu_threads}, hpi={enable_hpi}, mkldnn={enable_mkldnn}")
+
+        self._paddle_ocr_v4_instance = TextRecognition(
+            model_name='PP-OCRv4_mobile_rec',
+            device='gpu' if use_gpu else 'cpu',
+            enable_mkldnn=enable_mkldnn,
+            enable_hpi=enable_hpi,
+            cpu_threads=cpu_threads
+        )
         # 预热：避免首次调用的长延迟（不影响后续性能）
         try:
             warmup_img = np.zeros((32, 32, 3), dtype=np.uint8)
@@ -216,7 +272,7 @@ class TextOcrModel(object):
         except Exception as e:
             return ""
     
-    def _get_paddle_text_batch(self, images):
+    def _get_paddle_text_batch(self, images, preprocess=True, v4=False):
         """
         PaddleOCR 批量识别辅助函数（性能优化版）
         
@@ -238,8 +294,13 @@ class TextOcrModel(object):
         
         try:
             # 批量预处理图像 - 使用列表推导式
+            def _preprocess_image(_img):
+                if preprocess:
+                    return self._preprocess_image(_img)
+                else:
+                    return _img
             processed_data = [
-                (idx, self._preprocess_image(img))
+                (idx, _preprocess_image(img))
                 for idx, img in enumerate(images)
                 if img is not None and isinstance(img, np.ndarray) and img.size > 0
             ]
@@ -254,7 +315,12 @@ class TextOcrModel(object):
             ])
             
             # 批量执行识别（PaddleOCR 原生支持）
-            batch_results = self._paddle_ocr_instance.predict(list(processed_images))
+            if v4:
+                batch_results = self._paddle_ocr_v4_instance.predict(list(processed_images),
+                                                                  batch_size=self._batch_size)
+            else:
+                batch_results = self._paddle_ocr_instance.predict(list(processed_images),
+                                                                  batch_size=self._batch_size)
             
             # 构建结果列表 - 使用字典映射优化查找
             result_map = {
@@ -269,14 +335,14 @@ class TextOcrModel(object):
         except Exception as e:
             return [""] * len(images)
     
-    def batch_ocr(self, images, use_paddle_first=True, batch_size=None):
+    def batch_ocr(self, images, use_paddle_first=True, preprocess=True, v4=False):
         """
         批量 OCR 识别
         
         Args:
             images: 图像列表
             use_paddle_first: 是否优先使用 PaddleOCR (默认 True)
-            batch_size: 批量大小，None 则使用默认配置（仅PaddleOCR使用）
+            preprocess:
             
         Returns:
             识别结果列表
@@ -290,20 +356,17 @@ class TextOcrModel(object):
         
         try:
             if use_paddle_first:
-                # 使用 PaddleOCR 批处理
-                effective_batch_size = batch_size if batch_size is not None else self._batch_size
-                all_results = []
-                
-                for i in range(0, len(images), effective_batch_size):
-                    batch = images[i:i + effective_batch_size]
-                    batch_results = self._get_paddle_text_batch(batch)
-                    all_results.extend(batch_results)
-                
-                return all_results
+                return self._get_paddle_text_batch(images, preprocess=preprocess, v4=v4)
             else:
                 # 使用 ChineseOCR（逐个处理）
                 results = []
                 for img in images:
+                    def _preprocess_image(_img):
+                        if preprocess:
+                            return self._preprocess_image(_img)
+                        else:
+                            return _img
+                    img = _preprocess_image(img)
                     try:
                         results.append(self._chinese_ocr_instance(img) if img is not None else "")
                     except:
@@ -558,9 +621,9 @@ class TextOcrModel(object):
             # 批量OCR识别
             if not cell_images:
                 return []
-            
+
             # 使用批量OCR提高效率
-            ocr_texts = self.batch_ocr(cell_images)
+            ocr_texts = self.batch_ocr(cell_images, use_paddle_first=True, preprocess=False, v4=True)
             
             # 按行列组织结果
             # 先找到最大行列数
