@@ -9,7 +9,7 @@ bind = os.getenv("GUNICORN_BIND", "0.0.0.0:8078")
 # 工作进程数：默认 CPU 核心数 * 2 + 1（适用于 I/O 密集型任务）
 cpu_count = multiprocessing.cpu_count()
 default_workers = max(1, cpu_count * 2 + 1)
-workers = int(os.getenv("GUNICORN_WORKERS", default_workers))
+workers = int(os.getenv("GUNICORN_WORKERS", 1))
 
 # 工作模式：sync/gevent/eventlet/uvicorn
 worker_class_env = os.getenv("GUNICORN_WORKER_CLASS", "sync")
@@ -40,111 +40,9 @@ keepalive = int(os.getenv("GUNICORN_KEEPALIVE", 5))
 backlog = int(os.getenv("GUNICORN_BACKLOG", 2048))
 
 # 日志配置
-# 日志文件夹（可通过环境变量指定，默认 /app/logs）
-log_dir = os.getenv("GUNICORN_LOG_DIR", "/app/logs")
-
-# 确保日志目录存在
-os.makedirs(log_dir, exist_ok=True)
-
-# 访问日志和错误日志文件路径
-accesslog = os.getenv("GUNICORN_ACCESSLOG", os.path.join(log_dir, "gunicorn_access.log"))
-errorlog = os.getenv("GUNICORN_ERRORLOG", os.path.join(log_dir, "gunicorn_error.log"))
+accesslog = os.getenv("GUNICORN_ACCESSLOG", "-")
+errorlog = os.getenv("GUNICORN_ERRORLOG", "-")
 loglevel = os.getenv("GUNICORN_LOGLEVEL", "info").lower()
-
-# 日志轮转配置（使用 loguru）
-from loguru import logger
-import logging
-
-# 日志文件最大大小，可通过环境变量配置，默认 100MB
-log_max_size = os.getenv("GUNICORN_LOG_MAX_SIZE", "100 MB")
-
-# 保留时间，可通过环境变量配置，默认 7 天
-log_retention = os.getenv("GUNICORN_LOG_RETENTION", "7 days")
-
-# 配置日志轮转（使用 loguru）
-def setup_logging():
-    """设置日志轮转（使用 loguru）"""
-    # 移除 loguru 的默认 handler
-    logger.remove()
-    
-    # 将 Python logging 重定向到 loguru
-    class InterceptHandler(logging.Handler):
-        def emit(self, record):
-            # 获取对应的 loguru 级别
-            try:
-                level = logger.level(record.levelname).name
-            except ValueError:
-                # 映射 logging 级别到 loguru 级别
-                level_map = {
-                    50: "CRITICAL",
-                    40: "ERROR",
-                    30: "WARNING",
-                    20: "INFO",
-                    10: "DEBUG",
-                    0: "NOTSET"
-                }
-                level = level_map.get(record.levelno, "INFO")
-            
-            # 根据 logger 名称决定输出格式和文件
-            if record.name == "gunicorn.access":
-                # 访问日志：使用 bind 添加标识，然后通过 filter 过滤
-                logger.bind(name="gunicorn.access").opt(
-                    depth=6, 
-                    exception=record.exc_info
-                ).log(level, record.getMessage())
-            else:
-                # 错误日志：包含完整信息
-                logger.opt(
-                    depth=6, 
-                    exception=record.exc_info
-                ).log(level, record.getMessage())
-    
-    # 配置错误日志轮转
-    if errorlog and errorlog != "-":
-        # 使用 loguru 添加错误日志文件，支持轮转
-        # 过滤掉访问日志
-        logger.add(
-            errorlog,
-            rotation=log_max_size,
-            retention=log_retention,
-            level=loglevel.upper(),
-            format="{time:YYYY-MM-DD HH:mm:ss} [{level}] {message}",
-            encoding="utf-8",
-            enqueue=True,  # 异步写入，提高性能
-            backtrace=True,  # 记录堆栈跟踪
-            diagnose=True,  # 显示变量值
-            filter=lambda record: record["extra"].get("name") != "gunicorn.access"
-        )
-    
-    # 配置访问日志轮转
-    if accesslog and accesslog != "-":
-        # 访问日志使用简单的格式，直接记录消息
-        logger.add(
-            accesslog,
-            rotation=log_max_size,
-            retention=log_retention,
-            level="INFO",
-            format="{message}",
-            encoding="utf-8",
-            enqueue=True,  # 异步写入，提高性能
-            filter=lambda record: record["extra"].get("name") == "gunicorn.access"
-        )
-    
-    # 同时输出到控制台（如果日志文件未设置或设置为 "-"）
-    if errorlog == "-" or not errorlog:
-        logger.add(
-            sys.stderr,
-            level=loglevel.upper(),
-            format="{time:YYYY-MM-DD HH:mm:ss} [{level}] {message}",
-            colorize=True
-        )
-    
-    # 拦截 Gunicorn 的日志
-    logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
-    for logger_name in ["gunicorn", "gunicorn.error", "gunicorn.access", "uvicorn", "uvicorn.error", "uvicorn.access"]:
-        logging_logger = logging.getLogger(logger_name)
-        logging_logger.handlers = [InterceptHandler()]
-        logging_logger.propagate = False
 
 # 访问日志格式（包含响应时间）
 access_log_format = (
@@ -188,7 +86,6 @@ def when_ready(server):
 def on_starting(server):
     """服务器启动时调用"""
     server.log.info("正在启动 Gunicorn 服务器...")
-    setup_logging()
 
 def post_fork(server, worker):
     """工作进程 fork 后调用"""
