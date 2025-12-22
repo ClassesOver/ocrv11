@@ -63,4 +63,24 @@ ocrModelOpencv = os.path.join(base_dir, "models", "ocr.pb")
 
 ######################OCR模型###################################################
 
+######################YOLOv分类模型###################################################
+# YOLOv11 分类模型路径（用于在 detection_img 中先进行目标分类检测）
+# 支持 YOLOv8/YOLOv11 分类模型
+# 如果设置为 None 或文件不存在，将跳过分类检测，使用原有的检测流程
+# 支持 .pt, .onnx 等格式
+CLASSIFICATION_MODEL_PATH = os.path.join(base_dir, "models", "classification", "best.onnx")
+
+# 分类模型推理参数
+CLASSIFICATION_IMG_SIZE = 640  # 分类模型输入图像尺寸（默认 640）
+CLASSIFICATION_MAX_IMG_SIZE = 1920  # 输入图像最大尺寸，超过此尺寸会自动缩放（默认 1920）
+CLASSIFICATION_CONFIDENCE_THRESHOLD = 0.5  # 分类置信度阈值，低于此值的结果将被忽略（默认 0.5）
+######################YOLOv分类模型###################################################
+
 TIMEOUT = 30  # 超时时间
+
+######################YOLOv检测模型###################################################
+BILL_MODEL_FORMAT = 'openvino'
+STOCK_V1_MODEL_FORMAT = 'openvino'
+STOCK_V2_MODEL_FORMAT = 'openvino'
+VAT_MODEL_FORMAT = 'openvino'
+######################YOLOv检测模型###################################################

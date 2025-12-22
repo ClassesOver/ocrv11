@@ -1,0 +1,25 @@
+description: Ultralytics YOLO11n-cls model trained on /home/ubuntu/ov/traindata-cls-st2/
+author: Ultralytics
+date: '2025-12-22T09:42:45.027173'
+version: 8.3.235
+license: AGPL-3.0 License (https://ultralytics.com/license)
+docs: https://docs.ultralytics.com
+stride: 1
+task: classify
+batch: 1
+imgsz:
+- 640
+- 640
+names:
+  0: bill
+  1: invoice
+  2: stock1
+  3: stock2
+args:
+  batch: 1
+  fraction: 1.0
+  half: false
+  int8: false
+  dynamic: false
+  nms: false
+channels: 3

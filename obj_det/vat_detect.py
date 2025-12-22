@@ -6,6 +6,8 @@ import os
 import config
 from util.tool import *
 from functools import lru_cache
+from obj_det.model_loader import load_yolo_model
+from loguru import logger
 
 # 预编译正则表达式以提高性能
 RE_ADDR_PREFIX = re.compile(r'^\s*(地址|单位地址|购方地址|销方地址|地址、电话)[:：]?\s*')
@@ -54,18 +56,26 @@ type_converter = {'增值税专用发票': '01', '增值税普通发票': '04',
                   '增值税电子专用发票': '08', '增值税电子普通发票': '10',
                   '电子发票（增值税专用发票）': '31', '电子发票（增值税普通发票）': '32'}
 
-pub_weights = f"models/vat/best.onnx"
-pub_img_size = 640
+# 模型目录和推理尺寸
+model_dir = getattr(config, "VAT_MODEL_DIR", "models/vat")
+model_format = getattr(config, "VAT_MODEL_FORMAT", None)  # None 表示自动选择
+pub_img_size = getattr(config, "VAT_MODEL_IMGSZ", 640)
 
-# 初始化 YOLO 模型
+# 初始化 YOLOv11 模型（根据配置自动选择 best.pt、best.onnx 或 best_openvino_model）
 # 根据 config.GPU 配置选择设备
 if config.GPU:
     device = config.GPUID
 else:
     device = 'cpu'
 
-# 使用 ultralytics YOLO 类加载模型
-model = YOLO(pub_weights, task='detect')
+try:
+    model = load_yolo_model(model_dir, model_name='best', model_format=model_format, task='detect')
+except Exception as e:
+    logger.error(f"加载 YOLOv11 模型失败: {e}")
+    # 回退到直接指定路径的方式（兼容旧配置）
+    pub_weights = f"models/vat/best.onnx"
+    logger.warning(f"使用回退方式加载模型: {pub_weights}")
+    model = YOLO(pub_weights, task='detect')
 
 
 def get_check_code(code1, code2):

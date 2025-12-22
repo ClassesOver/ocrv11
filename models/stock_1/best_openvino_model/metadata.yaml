@@ -1,0 +1,40 @@
+description: Ultralytics YOLO11m model trained on stock.yaml
+author: Ultralytics
+date: '2025-12-22T10:04:15.135281'
+version: 8.3.235
+license: AGPL-3.0 License (https://ultralytics.com/license)
+docs: https://docs.ultralytics.com
+stride: 32
+task: detect
+batch: 1
+imgsz:
+- 640
+- 640
+names:
+  0: title
+  1: qrcode
+  2: supplier
+  3: total
+  4: idate
+  5: doc_number
+  6: fs
+  7: rk_way
+  8: hs_categ
+  9: total2
+  10: verified_by
+  11: handled_by
+  12: accountant
+  13: seal
+  14: line
+  15: cnt
+  16: page
+  17: total3
+  18: note
+args:
+  batch: 1
+  fraction: 1.0
+  half: false
+  int8: false
+  dynamic: false
+  nms: false
+channels: 3

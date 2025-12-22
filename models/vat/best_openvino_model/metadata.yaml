@@ -1,0 +1,42 @@
+description: Ultralytics YOLO11n model trained on vat.yaml
+author: Ultralytics
+date: '2025-12-22T09:49:05.874419'
+version: 8.3.235
+license: AGPL-3.0 License (https://ultralytics.com/license)
+docs: https://docs.ultralytics.com
+stride: 32
+task: detect
+batch: 1
+imgsz:
+- 640
+- 640
+names:
+  0: qrcode
+  1: invoice_code
+  2: invoice_number
+  3: title
+  4: bill_date
+  5: total
+  6: check_code
+  7: invoice_code2
+  8: invoice_number2
+  9: amount_with_tax
+  10: tax
+  11: buy_title
+  12: buy_tax
+  13: sale_title
+  14: sale_tax
+  15: sale_addr
+  16: sale_bank
+  17: buy_addr
+  18: buy_bank
+  19: seal_1
+  20: seal_2
+args:
+  batch: 1
+  fraction: 1.0
+  half: false
+  int8: false
+  dynamic: false
+  nms: false
+channels: 3

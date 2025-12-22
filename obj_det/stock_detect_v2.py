@@ -7,6 +7,7 @@ from loguru import logger
 
 import config
 from util.tool import get_amount, get_date, get_num, get_page, get_qrcode_data
+from obj_det.model_loader import load_yolo_model
 
 # 药品入库单类别映射（与模型标签保持一致）
 converter = {
@@ -27,13 +28,21 @@ converter = {
     'rk_way': 'rk_way',
 }
 
-# 模型权重与输入尺寸
-pub_weights = os.getenv("STOCK_V2_WEIGHTS", "models/stock_2/best.pt")
+# 模型目录与输入尺寸
+model_dir = os.getenv("STOCK_V2_MODEL_DIR", "models/stock_2")
+model_format = getattr(config, "STOCK_V2_MODEL_FORMAT", None)  # None 表示自动选择
 pub_img_size = getattr(config, "STOCK_V2_IMGSZ", 640)
 
-# 初始化 YOLO 模型
+# 初始化 YOLOv11 模型（根据配置自动选择 best.pt、best.onnx 或 best_openvino_model）
 device = config.GPUID if getattr(config, "GPU", False) else "cpu"
-model = YOLO(pub_weights, task='detect')
+try:
+    model = load_yolo_model(model_dir, model_name='best', model_format=model_format, task='detect')
+except Exception as e:
+    logger.error(f"加载 YOLOv11 模型失败: {e}")
+    # 回退到直接指定路径的方式（兼容旧配置）
+    pub_weights = os.getenv("STOCK_V2_WEIGHTS", "models/stock_2/best.pt")
+    logger.warning(f"使用回退方式加载模型: {pub_weights}")
+    model = YOLO(pub_weights, task='detect')
 
 # 置信度阈值（可配置，默认 0.618）
 CONFIDENCE_THRESHOLD = getattr(config, "STOCK_V2_CONFIDENCE_THRESHOLD", 0.618)

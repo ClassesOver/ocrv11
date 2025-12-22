@@ -6,6 +6,7 @@ import re
 from PIL import Image
 import config
 from util.tool import get_amount, get_date, get_num, get_title, get_qrcode_data, normalize_invoice_type
+from obj_det.model_loader import load_yolo_model
 
 # 类别与输出字段映射（财务票据）
 converter = {
@@ -23,8 +24,9 @@ converter = {
     'seal_2': 'seal_2',
 }
 
-# 模型路径和推理尺寸，支持通过配置覆盖
-pub_weights = getattr(config, "BILL_MODEL_PATH", "models/bill/11n/best.onnx")
+# 模型目录和推理尺寸，支持通过配置覆盖
+model_dir = getattr(config, "BILL_MODEL_DIR", "models/bill")
+model_format = getattr(config, "BILL_MODEL_FORMAT", None)  # None 表示自动选择
 pub_img_size = getattr(config, "BILL_MODEL_IMGSZ", 640)
 
 # 选择设备
@@ -36,8 +38,14 @@ SKIP_OCR_LABELS = {'qrcode', 'seal_1', 'seal_2'}
 # 置信度阈值（可配置，默认 0.618）
 CONFIDENCE_THRESHOLD = getattr(config, "BILL_CONFIDENCE_THRESHOLD", 0.618)
 
-# 初始化 YOLO 模型
-model = YOLO(pub_weights, task='detect')
+# 初始化 YOLOv11 模型（根据配置自动选择 best.pt、best.onnx 或 best_openvino_model）
+try:
+    model = load_yolo_model(model_dir, model_name='best', model_format=model_format, task='detect')
+except Exception as e:
+    logger.error(f"加载 YOLOv11 模型失败: {e}")
+    pub_weights = getattr(config, "BILL_MODEL_PATH", "models/bill/best.onnx")
+    logger.warning(f"使用回退方式加载模型: {pub_weights}")
+    model = YOLO(pub_weights, task='detect')
 
 
 def _process_label_text(label: str, text: str) -> str:
