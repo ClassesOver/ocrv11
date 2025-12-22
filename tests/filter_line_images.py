@@ -11,7 +11,7 @@ from obj_det.table.table_common import (
 # 配置路径
 images_dir = r"E:\stock\traindata\train\images"
 output_dir = r"E:\stock\traindata\train\tables"
-model_path = r"D:\ocr\ocrv5\ocr\code\models\stock_1\best.pt"
+model_path = r"/models/stock_1/best.pt"
 
 # 边缘容错（padding）像素数，在裁剪时增加边缘区域
 padding = 3

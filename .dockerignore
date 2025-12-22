@@ -45,7 +45,7 @@ docker-compose*.yml
 # 测试脚本（构建后可用脚本测试）
 quickstart.sh
 build.sh
-test_api.sh
+tests/test_api.sh
 verify_gunicorn.sh
 Makefile
 
