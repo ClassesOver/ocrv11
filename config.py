@@ -79,8 +79,8 @@ CLASSIFICATION_CONFIDENCE_THRESHOLD = 0.5  # 分类置信度阈值，低于此�
 TIMEOUT = 30  # 超时时间
 
 ######################YOLOv检测模型###################################################
-BILL_MODEL_FORMAT = 'openvino'
-STOCK_V1_MODEL_FORMAT = 'openvino'
-STOCK_V2_MODEL_FORMAT = 'openvino'
-VAT_MODEL_FORMAT = 'openvino'
+BILL_MODEL_FORMAT = 'onnx'
+STOCK_V1_MODEL_FORMAT = 'onnx'
+STOCK_V2_MODEL_FORMAT = 'onnx'
+VAT_MODEL_FORMAT = 'onnx'
 ######################YOLOv检测模型###################################################
