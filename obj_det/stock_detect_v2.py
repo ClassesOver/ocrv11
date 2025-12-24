@@ -6,7 +6,7 @@ from PIL import Image
 from loguru import logger
 
 import config
-from util.tool import get_amount, get_date, get_num, get_page, get_qrcode_data
+from util.tool import get_amount, get_date, get_num, get_page, get_qrcode_data_v2 as get_qrcode_data
 from obj_det.model_loader import load_yolo_model
 
 # 药品入库单类别映射（与模型标签保持一致）

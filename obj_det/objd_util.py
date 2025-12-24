@@ -329,6 +329,7 @@ def detection_img(img, saveImage=False):
                 if is_stock_v1(stock):
                     result['type'] = '02'
                     result['invoice'] = {}
+                    logger.info(result)
                     logger.debug(f"通过分类检测直接识别为入库单v1 (stock1)")
                     return result
             except Exception as e:
@@ -341,6 +342,7 @@ def detection_img(img, saveImage=False):
                 if is_stock_v2(stock):
                     result['type'] = '02'
                     result['invoice'] = {}
+                    logger.info(result)
                     logger.debug(f"通过分类检测直接识别为入库单v2 (stock2)")
                     return result
             except Exception as e:
@@ -353,6 +355,7 @@ def detection_img(img, saveImage=False):
                 if is_bill(invoice) and invoice['invoice_type']:
                     result['stock'] = {}
                     result['type'] = '01'
+                    logger.info(result)
                     logger.debug(f"通过分类检测直接识别为财务票据 (bill)")
                     return result
             except Exception as e:
@@ -365,7 +368,8 @@ def detection_img(img, saveImage=False):
                 if invoice['invoice_type']:
                     result['stock'] = {}
                     result['type'] = '01'
-                    logger.debug(f"通过分类检测直接识别为增值税发票 (invoice)")
+                    logger.info(result)
+                    logger.debug(f"通过分类检测直接识别为发票 (invoice)")
                     return result
             except Exception as e:
                 logger.error(traceback.format_exc())
@@ -419,7 +423,7 @@ def detection_img(img, saveImage=False):
         if stock:
             result['invoice'] = {}
             result['type'] = '02'
-
+    logger.info(result)
     return result
 
 

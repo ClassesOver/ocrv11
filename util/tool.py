@@ -12,7 +12,8 @@ import numpy as np
 from datetime import date, datetime
 from PIL import Image, ImageEnhance
 import pyzbar.pyzbar as pyzbar
-
+from qreader import QReader
+from config import base_dir
 # ============================================
 # 预编译正则表达式以提高性能
 # ============================================
@@ -392,6 +393,10 @@ def _stock_qrcode(barcodeData, stock):
     stock['page'] = get_page(barcode_list[4])
 
 
+qrcode_weights_folder = os.path.join(base_dir, 'models/qrdet')
+qreader = QReader(weights_folder=qrcode_weights_folder)
+
+
 def get_qrcode_data(img, index=0):
     if index > 3:
         return ''
@@ -407,6 +412,18 @@ def get_qrcode_data(img, index=0):
         return barcodes[0].data.decode("utf-8")
     else:
         return get_qrcode_data(img, index + 1)
+
+
+def get_qrcode_data_v2(img):
+    barcodes = get_qrcode_data(img, 0)
+    if barcodes:
+        return barcodes
+    else:
+        barcodes = qreader.detect_and_decode(image=img)
+        if barcodes:
+            return barcodes
+        else:
+            return barcodes[0]
 
 
 def qrcode_pyzbar(image, val, is_stock=False):

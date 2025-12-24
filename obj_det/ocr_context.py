@@ -403,7 +403,7 @@ class TextOcrModel(object):
                 img,
                 enable_angle_correction=True,
                 angle_threshold=0.1,
-                enable_enhance=True,
+                enable_enhance=False,
                 enable_perspective=True,
                 structure_threshold=0.6,
                 auto_adjust_threshold=True,
