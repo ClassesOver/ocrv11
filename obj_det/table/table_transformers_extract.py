@@ -395,7 +395,8 @@ def extract_table(img: np.ndarray,
                   enable_enhance: bool = True,
                   enable_perspective: bool = True,
                   structure_threshold: float = 0.6,
-                  auto_adjust_threshold: bool = True) -> Dict:
+                  auto_adjust_threshold: bool = True,
+                  selected_columns: Optional[List[int]] = None) -> Dict:
     """
     从图像中抽取表格结构（统一接口，参考 table_extract.py）
     
@@ -407,10 +408,11 @@ def extract_table(img: np.ndarray,
         enable_perspective: 是否启用透视校正，默认 True
         structure_threshold: 结构识别置信度阈值，默认 0.6
         auto_adjust_threshold: 是否自动调整阈值，默认 True
+        selected_columns: 指定要获取的列索引列表（从0开始），如果为None则返回所有列，例如 [0, 2, 3] 表示只获取第0、2、3列
         
     Returns:
         字典，包含以下字段：
-            - rows: 行列表，每行包含该行的单元格
+            - rows: 行列表，每行包含该行的单元格（如果指定了selected_columns，则只包含指定列的单元格）
             - columns: 列列表，每列包含该列的单元格
             - cells: 所有单元格列表，每个单元格包含位置和内容信息
             - structure: 表格结构矩阵 (行x列)
@@ -482,6 +484,28 @@ def extract_table(img: np.ndarray,
 
         # 组织表格结构（会自动根据行列生成单元格）
         table_structure = _organize_table_structure(rows, columns, cells)
+
+        # 如果指定了 selected_columns，则过滤 rows 中的 cells，只保留指定列的数据
+        if selected_columns is not None and len(selected_columns) > 0:
+            # 将 selected_columns 转换为集合以便快速查找
+            selected_cols_set = set(selected_columns)
+            
+            # 过滤每行的 cells，只保留指定列的单元格
+            filtered_rows = []
+            for row in table_structure['rows']:
+                filtered_cells = [cell for cell in row.get('cells', [])
+                                 if cell.get('col') in selected_cols_set]
+                filtered_rows.append({
+                    'bbox': row['bbox'],
+                    'cells': filtered_cells
+                })
+            filtered_columns = []
+            for col_idx, column in enumerate(table_structure['columns']):
+                if col_idx in selected_cols_set:
+                    filtered_columns.append(column)
+            table_structure['columns'] = filtered_columns
+            table_structure['rows'] = filtered_rows
+            logger.debug(f"已过滤列: 只保留列索引 {selected_columns}，每行单元格数已更新")
 
         # 添加预处理后的图像到返回结果（如果进行了预处理）
         if enable_perspective or enable_enhance or enable_angle_correction:

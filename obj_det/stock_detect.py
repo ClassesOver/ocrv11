@@ -18,18 +18,18 @@ converter = {
     'total': 'total',
     'idate': 'idate',
     'doc_number': 'doc_number',
-    'fs': 'fs',
-    'rk_way': 'rk_way',
-    'hs_categ': 'hs_categ',
+    #'fs': 'fs',
+    #'rk_way': 'rk_way',
+    #'hs_categ': 'hs_categ',
     'total2': 'total2',
     'verified_by': 'verified_by',
     'handled_by': 'handled_by',
     'accountant': 'accountant',
     'seal': 'seal',
     'line': 'line',
-    'cnt': 'cnt',
+    #'cnt': 'cnt',
     'page': 'page',
-    'total3': 'total3',
+    #'total3': 'total3',
     'note': 'note',
 }
 
@@ -62,7 +62,7 @@ def _process_label_text(label: str, text: str) -> str:
         # total3 是金额中文大写
         return get_chinese_amount(text)
     if label in ('total', 'total2'):
-        return get_amount(text)
+        return get_amount(text, precision=3)
     if label == 'idate':
         # 处理入库时间标签，提取日期部分
         # 例如："入库时间：2025-09-3014:15:22" -> "2025-09-30"
@@ -254,7 +254,16 @@ def stock_detection(img_numpy, stock=None, context=None, saveImage=False):
                         line_conf = label_confidences.get('line', 0.0)
                         if line_conf > CONFIDENCE_THRESHOLD:
                             logger.debug(f"line 置信度 {line_conf:.3f} > 阈值 {CONFIDENCE_THRESHOLD}，开始表格识别和OCR")
-                            rows = context.ocr_table_cells(line_img)
+                            # 根据 title 确定 selected_columns
+                            selected_columns = None
+                            if title:
+                                if '结算' in title:
+                                    selected_columns = [5, 6]
+                                    logger.debug(f"检测到结算类型，selected_columns: {selected_columns}")
+                                elif '总务' in title:
+                                    selected_columns = [6, 7]
+                                    logger.debug(f"检测到总务类型，selected_columns: {selected_columns}")
+                            rows = context.ocr_table_cells(line_img, selected_columns=selected_columns)
                             logger.info(f"表格识别成功，共 {len(rows)} 行")
                         else:
                             logger.debug(f"line 置信度 {line_conf:.3f} <= 阈值 {CONFIDENCE_THRESHOLD}，跳过表格识别")

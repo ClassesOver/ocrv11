@@ -6,6 +6,7 @@ from obj_det.table.table_transformers_extract import extract_table
 from settings import ocr_predict
 from paddleocr import TextRecognition as _TextRecognition
 from loguru import logger
+from typing import List, Optional
 import cv2
 import numpy as np
 import config
@@ -377,16 +378,17 @@ class TextOcrModel(object):
             logger.error(f"批量 OCR 识别错误: {e}")
             return [""] * len(images)
     
-    def table_recognize(self, img):
+    def table_recognize(self, img, selected_columns: Optional[List[int]] = None):
         """
         表格识别推理（使用 Table Transformer）
         
         Args:
             img: 输入图像（numpy数组）
+            selected_columns: 指定要获取的列索引列表（从0开始），如果为None则返回所有列，例如 [0, 2, 3] 表示只获取第0、2、3列
             
         Returns:
             字典，包含以下字段：
-                - rows: 行列表，每行包含该行的单元格
+                - rows: 行列表，每行包含该行的单元格（如果指定了selected_columns，则只包含指定列的单元格）
                 - columns: 列列表，每列包含该列的单元格
                 - cells: 所有单元格列表
                 - structure: 表格结构矩阵
@@ -404,7 +406,8 @@ class TextOcrModel(object):
                 enable_enhance=True,
                 enable_perspective=True,
                 structure_threshold=0.6,
-                auto_adjust_threshold=True
+                auto_adjust_threshold=True,
+                selected_columns=selected_columns
             )
             
             return table_result
@@ -562,16 +565,18 @@ class TextOcrModel(object):
         except:
             return 0
     
-    def ocr_table_cells(self, img):
+    def ocr_table_cells(self, img, selected_columns: Optional[List[int]] = None):
         """
         表格识别并批量OCR识别单元格（封装table_recognize）
         
         Args:
             img: 输入图像（numpy数组）
+            selected_columns: 指定要获取的列索引列表（从0开始），如果为None则返回所有列，例如 [0, 2, 3] 表示只获取第0、2、3列
             
         Returns:
             二维列表，格式为 [[row1_cell1, row1_cell2, ...], [row2_cell1, row2_cell2, ...], ...]
             用于 stock_detect 的 line 结果返回
+            如果指定了 selected_columns，则返回的列表中只包含指定列的数据，列索引保持原始位置
         """
         try:
             if img is None or not isinstance(img, np.ndarray) or img.size == 0:
@@ -579,7 +584,7 @@ class TextOcrModel(object):
                 return []
             
             # 先进行表格识别
-            table_result = self.table_recognize(img)
+            table_result = self.table_recognize(img, selected_columns=selected_columns)
             
             if not isinstance(table_result, dict):
                 return []

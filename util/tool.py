@@ -106,16 +106,23 @@ def get_float(string):
     except Exception:
         return '¥ 0.00'
 
-def get_amount(string):
+def get_amount(string, precision=2):
     """
     提取金额并最大化容错（优化版，使用预编译正则和映射表）：
     - 统一全角/半角字符、货币符号与中文"元/圆"
     - 修正常见 OCR 误识别（O→0、S→5 等）
     - 支持货币符号在前/后、括号表示负数、末尾减号
     返回格式统一为 `¥ xx.xx`，找不到有效数字时返回 `¥ 0.00`。
+    
+    Args:
+        string: 输入字符串
+        precision: 小数精度，默认为 2（小数点后保留2位）
+    
+    Returns:
+        格式化后的金额字符串，格式为 `¥ xx.xx`（精度由 precision 参数控制）
     """
     if not string:
-        return '¥ 0.00'
+        return f'¥ {format(0, f".{precision}f")}'
     try:
         raw = str(string).strip()
         
@@ -151,7 +158,7 @@ def get_amount(string):
         
         candidates = currency_vals or suffix_vals or generic_vals
         if not candidates:
-            return '¥ 0.00'
+            return f'¥ {format(0, f".{precision}f")}'
         
         # 选择最有可能的金额：优先最后出现的金额，其次绝对值最大
         value = candidates[-1]
@@ -164,9 +171,9 @@ def get_amount(string):
         if (is_bracket_negative or has_trailing_minus) and value > 0:
             value = -value
         
-        return f'¥ {value:.2f}'
+        return f'¥ {format(value, f".{precision}f")}'
     except Exception:
-        return '¥ 0.00'
+        return f'¥ {format(0, f".{precision}f")}'
 
 
 def get_chinese_amount(string):

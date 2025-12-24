@@ -54,7 +54,7 @@ SKIP_OCR_LABELS = {'qrcode', 'line', 'director', 'purchaser', 'verified_by', 'ac
 def _process_label_text(label: str, text: str) -> str:
     """根据标签类型做简单后处理。"""
     if label in ('total', 'total2'):
-        return get_amount(text)
+        return get_amount(text, precision=3)
     if label == 'idate':
         # 处理入库时间标签，提取日期部分
         # 例如："入库时间：2025-09-3014:15:22" -> "2025-09-30"
@@ -273,7 +273,7 @@ def stock_detection_v2(img_numpy, stock=None, context=None, saveImage=False):
                         line_conf = label_confidences.get('line', 0.0)
                         if line_conf > CONFIDENCE_THRESHOLD:
                             logger.debug(f"line 置信度 {line_conf:.3f} > 阈值 {CONFIDENCE_THRESHOLD}，开始表格识别和OCR")
-                            rows = context.ocr_table_cells(line_img)
+                            rows = context.ocr_table_cells(line_img, selected_columns=[0, 7])
                             logger.info(f"表格识别成功，共 {len(rows)} 行")
                         else:
                             logger.debug(f"line 置信度 {line_conf:.3f} <= 阈值 {CONFIDENCE_THRESHOLD}，跳过表格识别")
