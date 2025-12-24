@@ -65,6 +65,7 @@ RUN uv pip install --no-cache-dir torch torchvision --index-url https://download
     uv pip install --no-cache-dir -U transformers && \
     uv pip install --no-cache-dir openvino && \
     uv pip install --no-cache-dir openvino-telemetry && \
+    uv pip install --no-cache-dir qreader && \
     uv pip install https://paddle-whl.bj.bcebos.com/nightly/cu126/safetensors/safetensors-0.6.2.dev0-cp38-abi3-linux_x86_64.whl && \
     uv cache prune 
 
