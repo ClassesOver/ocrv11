@@ -84,3 +84,4 @@ STOCK_V1_MODEL_FORMAT = 'onnx'
 STOCK_V2_MODEL_FORMAT = 'onnx'
 VAT_MODEL_FORMAT = 'onnx'
 ######################YOLOv检测模型###################################################
+force_ocr_table = False

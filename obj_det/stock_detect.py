@@ -244,9 +244,9 @@ def stock_detection(img_numpy, stock=None, context=None, saveImage=False):
                             detected = True
                         else:
                             logger.debug(f"标签 [{label}] 置信度 {conf:.3f} < 阈值 {CONFIDENCE_THRESHOLD}，仅保存置信度")
- 
+                force_ocr_table = not stock.get('qrcode') or config.force_ocr_table
                 # 处理 line 标签：进行表格识别
-                if 'line' in labels:
+                if 'line' in labels and force_ocr_table:
                     try:
                         logger.info("开始处理 line 标签（表格识别）")
                         # 对line区域进行表格识别和OCR
