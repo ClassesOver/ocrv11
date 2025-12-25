@@ -415,16 +415,35 @@ def get_qrcode_data(img, index=0):
 
 
 def get_qrcode_data_v2(img):
+    # 先尝试使用 pyzbar 方法
     barcodes = get_qrcode_data(img, 0)
     if barcodes:
         return barcodes
     else:
-        barcodes = qreader.detect_and_decode(image=img)
-        if barcodes:
-            return barcodes
+        # 如果 pyzbar 失败，使用 qreader
+        # qreader 需要 numpy 数组，将 PIL Image 转换为 numpy 数组
+        if isinstance(img, Image.Image):
+            # 将 PIL Image 转换为 numpy 数组
+            img_array = np.array(img)
+            # 如果是灰度图，转换为 RGB（qreader 可能需要 3 通道）
+            if len(img_array.shape) == 2:
+                img_array = cv2.cvtColor(img_array, cv2.COLOR_GRAY2RGB)
+            elif len(img_array.shape) == 3 and img_array.shape[2] == 4:
+                # RGBA 转 RGB
+                img_array = cv2.cvtColor(img_array, cv2.COLOR_RGBA2RGB)
         else:
-            return barcodes[0]
-
+            img_array = img
+        
+        try:
+            barcodes = qreader.detect_and_decode(img_array)
+            # 处理不同的返回值类型
+            if barcodes:
+                return str(barcodes[0]).strip(',')
+        except Exception as e:
+            # 如果 qreader 出错，返回空字符串
+            print(f"QReader error: {e}")
+            return ''
+        return ''
 
 def qrcode_pyzbar(image, val, is_stock=False):
     try:
