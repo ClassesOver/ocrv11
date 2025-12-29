@@ -437,7 +437,7 @@ def get_qrcode_data_v2(img):
         try:
             barcodes = qreader.detect_and_decode(img_array)
             # 处理不同的返回值类型
-            if barcodes:
+            if barcodes and barcodes[0]:
                 return str(barcodes[0]).strip(',')
         except Exception as e:
             # 如果 qreader 出错，返回空字符串
