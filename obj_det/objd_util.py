@@ -249,7 +249,6 @@ def classify_image(img, confidence_threshold=0.618):
         # 执行分类预测（优化参数）
         results = model.predict(
             source=img,
-            imgsz=imgsz,
             device=device,
             verbose=False,
             half=False,  # 分类任务通常不需要半精度
@@ -360,7 +359,33 @@ def detection_img(img, saveImage=False):
                     return result
             except Exception as e:
                 logger.error(traceback.format_exc())
-        elif predicted_class == 'invoice':
+        elif predicted_class == 'invoice1':
+            # 增值税发票
+            try:
+                result['invoice'] = invoice = {'invoice_type': ''}
+                context.vat(img, invoice, context, saveImage=saveImage)
+                if invoice['invoice_type']:
+                    result['stock'] = {}
+                    result['type'] = '01'
+                    logger.info(result)
+                    logger.debug(f"通过分类检测直接识别为发票 (invoice1)")
+                    return result
+            except Exception as e:
+                logger.error(traceback.format_exc())
+        elif predicted_class == 'invoice2':
+            # 增值税发票
+            try:
+                result['invoice'] = invoice = {'invoice_type': ''}
+                context.vat_v2(img, invoice, context, saveImage=saveImage)
+                if invoice['invoice_type']:
+                    result['stock'] = {}
+                    result['type'] = '01'
+                    logger.info(result)
+                    logger.debug(f"通过分类检测直接识别为发票 (invoice2)")
+                    return result
+            except Exception as e:
+                logger.error(traceback.format_exc())
+        elif 'invoice' in predicted_class:
             # 增值税发票
             try:
                 result['invoice'] = invoice = {'invoice_type': ''}

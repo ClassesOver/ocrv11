@@ -1,4 +1,5 @@
 from obj_det.vat_detect import invoice_detection as vat
+from obj_det.vat_detect_v2 import invoice_detection as vat_v2
 from obj_det.stock_detect_v2 import stock_detection_v2 as stock_v2
 from obj_det.stock_detect import stock_detection as stock_v1
 from obj_det.bill_detect import bill_detection as bill
@@ -140,6 +141,7 @@ class TextOcrModel(object):
 
         self.ocr = self._ocr
         self.vat = vat
+        self.vat_v2 = vat_v2
         self.stock_v1 = stock_v1
         self.stock_v2 = stock_v2
         # 默认入库单检测使用新版（药品），但仍保留别名以兼容调用
