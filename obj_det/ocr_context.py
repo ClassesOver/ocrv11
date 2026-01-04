@@ -47,7 +47,7 @@ class TextOcrModel(object):
         is_linux = platform.system().lower() == 'linux'
 
         # PaddleOCR 识别模型配置：支持通过配置/环境变量切换
-        model_name = getattr(config, "PADDLE_REC_MODEL_NAME", "ch_SVTRv2_rec")
+        model_name = getattr(config, "PADDLE_REC_MODEL_NAME", "PP-OCRv5_server_rec")
         
         # HPI 配置：通过环境变量控制（默认启用以获得更好性能）
         enable_hpi_env = os.getenv("PADDLE_ENABLE_HPI", "").strip().lower()
@@ -630,7 +630,7 @@ class TextOcrModel(object):
                 return []
 
             # 使用批量OCR提高效率
-            ocr_texts = self.batch_ocr(cell_images, use_paddle_first=True, preprocess=False, v4=True)
+            ocr_texts = self.batch_ocr(cell_images, use_paddle_first=True, preprocess=False, v4=False)
             
             # 按行列组织结果
             # 先找到最大行列数

@@ -101,7 +101,8 @@ def _process_label_text(label: str, text: str) -> str:
     if label in ('total', 'amount_with_tax'):
         return get_amount(text)
     if label in ('buy_title', 'sale_title'):
-        return get_title(text)
+        _title = get_title(text)
+        return _title and _title.replace('交款人', '').replace('收款单位', '')
     if label == 'check_code':
         # 处理校验码标签，提取数字部分
         # 例如："校验码：679695" -> "679695"
