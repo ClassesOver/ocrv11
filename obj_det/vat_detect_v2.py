@@ -253,6 +253,206 @@ def ocr_buy_sale(ocr, label, img):
     return process_buy_sale_field(label, raw)
 
 
+def process_ocr_text(label: str, text: str) -> str:
+    """
+    根据标签类型处理OCR识别的文本
+    
+    Args:
+        label: 字段标签
+        text: OCR识别的原始文本
+        
+    Returns:
+        处理后的文本
+    """
+    if label in ('check_code', 'check_code2'):
+        return text
+    elif label in ('invoice_number', 'invoice_number2'):
+        return get_num(text)
+    elif label in ('invoice_code2', 'invoice_code'):
+        num_text = get_num(text)
+        return num_text[-12:] if num_text else ''
+    elif label == 'bill_date':
+        return get_date(text)
+    elif label in ('total', 'amount_with_tax', 'tax'):
+        return get_amount(text)
+    elif label.startswith(('buy_', 'sale_')):
+        return process_buy_sale_field(label, text)
+    elif label == 'title':
+        return text
+    else:
+        return text
+
+
+def update_invoice_from_ocr(ocr_results_dict: dict, invoice: dict):
+    """
+    根据OCR识别结果更新invoice
+    
+    Args:
+        ocr_results_dict: OCR识别结果字典
+        invoice: 发票信息字典
+    """
+    for label, text in ocr_results_dict.items():
+        if label == 'qrcode':
+            continue
+        
+        processed_text = process_ocr_text(label, text)
+        
+        # 更新 invoice
+        if label in converter:
+            invoice[converter[label]] = processed_text
+    
+    # 处理 title 和 invoice_type（根据 title 判断）
+    if invoice.get('title') and not invoice.get('invoice_type'):
+        judge_invoice_type(invoice.get('title'), invoice)
+
+
+def process_qrcode(labels: dict, label_confidences: dict, ocr_results_dict: dict, invoice: dict) -> bool:
+    """
+    处理二维码，更新invoice
+    
+    Args:
+        labels: 标签图像区域字典
+        label_confidences: 标签置信度字典
+        ocr_results_dict: OCR识别结果字典
+        invoice: 发票信息字典
+        
+    Returns:
+        bool: 二维码是否解析成功
+    """
+    if 'qrcode' not in labels:
+        return False
+    
+    qrcode_parsed = False
+    qr_text = None
+    
+    try:
+        logger.debug("开始处理二维码")
+        qr_text = get_qrcode_data(Image.fromarray(labels['qrcode']))
+        if qr_text:
+            invoice['qrcode'] = qr_text
+            invoice['qrcode_conf'] = label_confidences.get('qrcode', 0.0)
+            logger.info(f"二维码识别成功: {qr_text}")
+            
+            # 解析二维码数据并更新 invoice（会覆盖 OCR 结果中的相关字段）
+            try:
+                _vat_qrcode(qr_text, invoice)
+                # 检查关键字段是否设置成功，判断二维码解析是否成功
+                if invoice.get('invoice_type') and invoice.get('invoice_number'):
+                    qrcode_parsed = True
+                    logger.debug(f"二维码解析成功，发票类型: {invoice.get('invoice_type')}, 发票号码: {invoice.get('invoice_number')}")
+                else:
+                    logger.warning("二维码解析后关键字段缺失")
+            except Exception as e:
+                logger.warning(f"二维码解析失败: {e}", exc_info=True)
+    except Exception as e:
+        logger.warning(f"二维码识别失败: {e}")
+    
+    # 如果二维码识别成功，处理 title 和金额字段
+    if qr_text:
+        _update_title_from_qrcode(invoice, ocr_results_dict)
+        if qrcode_parsed:
+            _supplement_amount_fields(invoice, ocr_results_dict)
+    
+    return qrcode_parsed
+
+
+def _update_title_from_qrcode(invoice: dict, ocr_results_dict: dict):
+    """
+    根据二维码解析结果更新title
+    
+    Args:
+        invoice: 发票信息字典
+        ocr_results_dict: OCR识别结果字典
+    """
+    invoice_type = invoice.get('invoice_type')
+    if invoice_type == '32':
+        invoice['title'] = '电子发票（普通发票）'
+    elif invoice_type == '31':
+        invoice['title'] = '电子发票（专用发票）'
+    elif not invoice.get('title'):
+        # 如果没有 title，使用 OCR 结果
+        invoice['title'] = ocr_results_dict.get('title', '')
+
+
+def _supplement_amount_fields(invoice: dict, ocr_results_dict: dict):
+    """
+    二维码解析成功后，补充缺失的金额字段
+    
+    Args:
+        invoice: 发票信息字典
+        ocr_results_dict: OCR识别结果字典
+    """
+    invoice_type = invoice.get('invoice_type')
+    if invoice_type in ['01', '04']:
+        # 普通发票：二维码已设置 total_amount，尝试从 OCR 获取 amount_with_tax 和 tax
+        if not invoice.get('amount_with_tax') or invoice.get('amount_with_tax') == '¥ 0.00':
+            invoice['amount_with_tax'] = get_amount(ocr_results_dict.get('amount_with_tax', ''))
+        if not invoice.get('tax') or invoice.get('tax') == '¥ 0.00':
+            invoice['tax'] = get_amount(ocr_results_dict.get('tax', ''))
+    elif invoice_type in ['31', '32']:
+        # 电子发票：二维码已设置 amount_with_tax，尝试从 OCR 获取 total_amount 和 tax
+        if not invoice.get('total_amount') or invoice.get('total_amount') == '¥ 0.00':
+            invoice['total_amount'] = get_amount(ocr_results_dict.get('total', ''))
+        if not invoice.get('tax') or invoice.get('tax') == '¥ 0.00':
+            invoice['tax'] = get_amount(ocr_results_dict.get('tax', ''))
+
+
+def process_seals(label_coords: dict, label_confidences: dict, invoice: dict):
+    """
+    处理印章（seal_*）字段
+    
+    Args:
+        label_coords: 标签坐标字典
+        label_confidences: 标签置信度字典
+        invoice: 发票信息字典
+    """
+    for label in label_coords.keys():
+        if label.startswith('seal_'):
+            conf = label_confidences.get(label, 0.0)
+            invoice[f'{converter[label]}_conf'] = conf
+            # 只有置信度 >= 阈值时才设置 'detected'
+            if conf >= CONFIDENCE_THRESHOLD:
+                invoice[converter[label]] = "detected"
+                logger.debug(f"标签 [{label}] 置信度 {conf:.3f} >= 阈值 {CONFIDENCE_THRESHOLD}，设置为 detected")
+            else:
+                logger.debug(f"标签 [{label}] 置信度 {conf:.3f} < 阈值 {CONFIDENCE_THRESHOLD}，仅保存置信度")
+
+
+def post_process_invoice(invoice: dict):
+    """
+    后处理invoice：税额计算、负数处理、填充缺失字段等
+    
+    Args:
+        invoice: 发票信息字典
+    """
+    # 税额计算 - 使用预编译的正则表达式
+    # 只有当税额为 0.00 且两个金额字段都有有效值时才计算
+    if invoice.get('tax') == '¥ 0.00':
+        total_amount = float(''.join(RE_AMOUNT.findall(invoice.get('total_amount', '0'))))
+        amount_with_tax = float(''.join(RE_AMOUNT.findall(invoice.get('amount_with_tax', '0'))))
+        # 只有当两个金额都不为 0 时才计算税额（避免电子发票二维码解析后 total_amount 为 0 的情况）
+        if total_amount != 0.0 and amount_with_tax != 0.0:
+            invoice['tax'] = '¥ {}'.format(round(total_amount - amount_with_tax, 2))
+    
+    # 处理负数税额
+    tax = invoice.get('tax', '')
+    if '-' not in tax and ('-' in invoice.get('total_amount', '') or '-' in invoice.get('amount_with_tax', '')):
+        invoice['tax'] = tax.replace('¥ ', '¥ -')
+    
+    # 填充缺失字段
+    for val in converter.values():
+        if invoice.get(val) is None:
+            if val in ('total_amount', 'tax', 'amount_with_tax'):
+                invoice[val] = '¥ 0.00'
+            else:
+                invoice[val] = ""
+    
+    # 设置发票类型名称和处理重复数据
+    invoice_type = invoice.get('invoice_type', '')
+    invoice['invoice_type_name'] = type_converter_name.get(invoice_type, '未识别的发票')
+    judge_invoice_repeat_data(invoice)
+
+
 
 def invoice_detection(img_numpy, invoice=None, context=None, saveImage=False):
     """
@@ -270,6 +470,15 @@ def invoice_detection(img_numpy, invoice=None, context=None, saveImage=False):
     注意:
         YOLO/ONNX Runtime 推理是线程安全的，无需额外的锁保护
     """
+    # 初始化 invoice
+    if invoice is None:
+        invoice = {}
+    
+    # 检查 context 是否为 None
+    if context is None:
+        logger.warning("OCR context 未提供，返回空结果")
+        return invoice
+    
     # 使用 ultralytics YOLO 进行推理，添加性能优化参数
     # YOLO 推理是线程安全的，可以在多线程环境下并发调用
     results = model.predict(
@@ -309,12 +518,12 @@ def invoice_detection(img_numpy, invoice=None, context=None, saveImage=False):
 
                 # 前两个控制竖向坐标，后两个控制横向
                 x1, y1, x2, y2 = int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3])
-                img_h, img_w = im0.shape[:2]
+                img_w = im0.shape[1]
                 newimg_list = [
                     y1,                                     # y1 不处理
                     y2,                                     # y2 不处理
-                    max(0, x1 - 3),                        # x1 向左扩展12像素，但不小于0
-                    min(img_w, x2 + 3)                     # x2 向右扩展12像素，但不大于图像宽度
+                    max(0, x1 - 3),                        # x1 向左扩展3像素，但不小于0
+                    min(img_w, x2 + 3)                     # x2 向右扩展3像素，但不大于图像宽度
                 ]
 
                 # 处理重复的 check_code
@@ -323,8 +532,8 @@ def invoice_detection(img_numpy, invoice=None, context=None, saveImage=False):
 
                 # 特殊处理 buy_bank
                 if label == 'buy_bank':
-                    type = ocr(im0[y1 - 5:y2 + 5, x1 - 100:x1])
-                    if '电话' in type:
+                    ocr_result = ocr(im0[y1 - 5:y2 + 5, x1 - 100:x1])
+                    if '电话' in ocr_result:
                         labels["buy_addr"] = newimg_list
                         label_confidences["buy_addr"] = conf
                         continue
@@ -340,8 +549,9 @@ def invoice_detection(img_numpy, invoice=None, context=None, saveImage=False):
                 label_confidences[label] = conf  # 保存置信度
 
             # 将标签坐标转换为实际图像区域
-            labels = {key: im0[newimg_list[0]:newimg_list[1], newimg_list[2]:newimg_list[3]]
-                      for key, newimg_list in labels.items()}
+            label_coords = labels.copy()  # 保存坐标列表
+            labels = {key: im0[coords[0]:coords[1], coords[2]:coords[3]]
+                      for key, coords in label_coords.items()}
 
             # 使用batch_ocr批量识别所有labels
             # 批量 OCR，跳过无需 OCR 的标签
@@ -365,109 +575,17 @@ def invoice_detection(img_numpy, invoice=None, context=None, saveImage=False):
                     ocr_results_dict[label] = text
                     logger.debug(f"OCR 结果 [{label}]: {text[:50] if text else ''}")
 
-            # 处理二维码
-            qrcode_parsed = False  # 标记二维码是否解析成功
-            if 'qrcode' in labels:
-                try:
-                    logger.debug("开始处理二维码")
-                    qr_text = get_qrcode_data(Image.fromarray(labels['qrcode']))
-                    if qr_text:
-                        invoice['qrcode'] = qr_text
-                        invoice['qrcode_conf'] = label_confidences.get('qrcode', 0.0)
-                        logger.info(f"二维码识别成功: {qr_text}")
-                        # 解析二维码数据并更新 invoice
-                        try:
-                            _vat_qrcode(qr_text, invoice)
-                            # 检查关键字段是否设置成功，判断二维码解析是否成功
-                            if invoice.get('invoice_type') and invoice.get('invoice_number'):
-                                qrcode_parsed = True
-                                logger.debug(f"二维码解析成功，发票类型: {invoice.get('invoice_type')}, 发票号码: {invoice.get('invoice_number')}")
-                            else:
-                                logger.warning("二维码解析后关键字段缺失")
-                        except Exception as e:
-                            logger.warning(f"二维码解析失败: {e}", exc_info=True)
-                except Exception as e:
-                    logger.warning(f"二维码识别失败: {e}")
-                
-                # 如果二维码识别成功（无论解析是否成功），处理后续逻辑
-                if invoice.get('qrcode'):
-                    if invoice.get('invoice_type') == '32':
-                        title = '电子发票（普通发票）'
-                    elif invoice.get('invoice_type') == '31':
-                        title = '电子发票（专用发票）'
-                    else:
-                        title = ocr_results_dict.get('title', '')
-                    invoice['title'] = title
+            # ========== 第一步：先根据 OCR 识别结果更新 invoice ==========
+            update_invoice_from_ocr(ocr_results_dict, invoice)
 
-                    # 金额字段处理逻辑：
-                    # 1. 如果二维码未解析成功，使用 OCR 结果填充所有金额字段
-                    # 2. 如果二维码解析成功：
-                    #    - 对于普通发票（01, 04）：二维码已设置 total_amount，尝试从 OCR 获取 amount_with_tax 和 tax
-                    #    - 对于电子发票（31, 32）：二维码已设置 amount_with_tax，尝试从 OCR 获取 total_amount 和 tax
-                    if not qrcode_parsed:
-                        # 二维码未解析成功，使用 OCR 结果
-                        if invoice.get('invoice_type') in ['01', '04']:
-                            invoice['amount_with_tax'] = get_amount(ocr_results_dict.get('amount_with_tax', ''))
-                            invoice['tax'] = get_amount(ocr_results_dict.get('tax', ''))
-                        elif invoice.get('invoice_type') in ['31', '32']:
-                            invoice['total_amount'] = get_amount(ocr_results_dict.get('total', ''))
-                            invoice['tax'] = get_amount(ocr_results_dict.get('tax', ''))
-                    else:
-                        # 二维码解析成功，补充缺失的金额字段
-                        if invoice.get('invoice_type') in ['01', '04']:
-                            # 普通发票：二维码已设置 total_amount，尝试从 OCR 获取 amount_with_tax 和 tax
-                            if not invoice.get('amount_with_tax') or invoice.get('amount_with_tax') == '¥ 0.00':
-                                invoice['amount_with_tax'] = get_amount(ocr_results_dict.get('amount_with_tax', ''))
-                            if not invoice.get('tax') or invoice.get('tax') == '¥ 0.00':
-                                invoice['tax'] = get_amount(ocr_results_dict.get('tax', ''))
-                        elif invoice.get('invoice_type') in ['31', '32']:
-                            # 电子发票：二维码已设置 amount_with_tax，尝试从 OCR 获取 total_amount 和 tax
-                            if not invoice.get('total_amount') or invoice.get('total_amount') == '¥ 0.00':
-                                invoice['total_amount'] = get_amount(ocr_results_dict.get('total', ''))
-                            if not invoice.get('tax') or invoice.get('tax') == '¥ 0.00':
-                                invoice['tax'] = get_amount(ocr_results_dict.get('tax', ''))
+            # ========== 第二步：然后解析二维码更新 invoice ==========
+            process_qrcode(labels, label_confidences, ocr_results_dict, invoice)
 
-                        for label in labels.keys():
-                            if label.startswith(('buy_', 'sale_')):
-                                text = ocr_results_dict.get(label, '')
-                                # 使用统一的处理函数（消除重复代码）
-                                invoice[converter[label]] = process_buy_sale_field(label, text)
-                            elif label.startswith('seal_'):
-                                # 印章识别（通常无需OCR，只需检测）
-                                # 保存置信度
-                                conf = label_confidences.get(label, 0.0)
-                                invoice[f'{converter[label]}_conf'] = conf
-                                # 只有置信度 >= 阈值时才设置 'detected'
-                                if conf >= CONFIDENCE_THRESHOLD:
-                                    invoice[converter[label]] = "detected"
-                                    logger.debug(f"标签 [{label}] 置信度 {conf:.3f} >= 阈值 {CONFIDENCE_THRESHOLD}，设置为 detected")
-                                else:
-                                    logger.debug(f"标签 [{label}] 置信度 {conf:.3f} < 阈值 {CONFIDENCE_THRESHOLD}，仅保存置信度")
+            # ========== 第三步：处理印章（seal_*） ==========
+            process_seals(label_coords, label_confidences, invoice)
 
-            # 税额计算 - 使用预编译的正则表达式
-            # 只有当税额为 0.00 且两个金额字段都有有效值时才计算
-            if "¥ 0.00" == invoice.get('tax'):
-                total_amount = float(''.join(RE_AMOUNT.findall(invoice.get('total_amount', '0'))))
-                amount_with_tax = float(''.join(RE_AMOUNT.findall(invoice.get('amount_with_tax', '0'))))
-                # 只有当两个金额都不为 0 时才计算税额（避免电子发票二维码解析后 total_amount 为 0 的情况）
-                if total_amount != 0.0 and amount_with_tax != 0.0:
-                    invoice['tax'] = '¥ {}'.format(round(total_amount - amount_with_tax, 2))
-
-            # 处理负数税额
-            if '-' not in invoice.get('tax', '') and (
-                    '-' in invoice.get('total_amount', '') or '-' in invoice.get('amount_with_tax', '')):
-                invoice['tax'] = invoice['tax'].replace('¥ ', '¥ -')
-
-            # 填充缺失字段
-            for val in converter.values():
-                if invoice.get(val) is None:
-                    if val in ('total_amount', 'tax', 'amount_with_tax'):
-                        invoice[val] = '¥ 0.00'
-                    else:
-                        invoice[val] = ""
-
-            invoice['invoice_type_name'] = type_converter_name[invoice['invoice_type']]
-            judge_invoice_repeat_data(invoice)
+            # ========== 第四步：后处理（税额计算、负数处理、填充缺失字段等） ==========
+            post_process_invoice(invoice)
 
     return invoice
 
