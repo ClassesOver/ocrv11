@@ -24,17 +24,17 @@ else:
 threads = int(os.getenv("GUNICORN_THREADS", 2))
 
 # 超时时间（秒）- OCR 处理较慢，设置较大值
-timeout = int(os.getenv("GUNICORN_TIMEOUT", 120))
+timeout = int(os.getenv("GUNICORN_TIMEOUT", 1200))
 
 # 优雅重启超时
 graceful_timeout = int(os.getenv("GUNICORN_GRACEFUL_TIMEOUT", 30))
 
 # 最大请求数（防止内存泄漏）
 max_requests = int(os.getenv("GUNICORN_MAX_REQUESTS", 1000))
-max_requests_jitter = int(os.getenv("GUNICORN_MAX_REQUESTS_JITTER", 50))
+max_requests_jitter = int(os.getenv("GUNICORN_MAX_REQUESTS_JITTER", 500))
 
 # 连接保持时间（秒）
-keepalive = int(os.getenv("GUNICORN_KEEPALIVE", 5))
+keepalive = int(os.getenv("GUNICORN_KEEPALIVE", 500))
 
 # 监听队列大小
 backlog = int(os.getenv("GUNICORN_BACKLOG", 2048))
