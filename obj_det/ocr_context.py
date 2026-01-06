@@ -35,6 +35,27 @@ class TextRecognition(_TextRecognition):
         })
         return res
 
+class TextDetection(_TextDetection):
+
+    def _get_extra_paddlex_predictor_init_args(self):
+        res = super()._get_extra_paddlex_predictor_init_args()
+        # 获取 CPU 核心数用于 HPI 配置
+        try:
+            import multiprocessing
+            cpu_count = multiprocessing.cpu_count()
+        except:
+            cpu_count = 4  # 默认值
+
+        res.update({
+            'hpi_config': {
+                'backend': 'onnxruntime',
+                'backend_config': {
+                    'cpu_num_threads': max(10, min(cpu_count, 16))
+                }
+            }
+        })
+        return res
+
 
 class TextOcrModel(object):
     def __init__(self):
@@ -125,13 +146,18 @@ class TextOcrModel(object):
         logger.info(
             f"PaddleOCR 初始化成功: model={model_name}, device={'gpu' if use_gpu else 'cpu'}, batch_size={self._batch_size}, cpu_threads={cpu_threads}, hpi={enable_hpi}, mkldnn={enable_mkldnn}")
 
-        self._paddle_ocr_v4_instance = TextRecognition(
-            model_name='PP-OCRv4_mobile_rec',
-            device='gpu' if use_gpu else 'cpu',
-            enable_mkldnn=enable_mkldnn,
-            enable_hpi=enable_hpi,
-            cpu_threads=cpu_threads
-        )
+        # PP-OCRv4 实例按需加载，默认禁用
+        # 可通过 config.ENABLE_PADDLE_OCR_V4 = True 启用
+        self._paddle_ocr_v4_instance = None
+        self._paddle_ocr_v4_enabled = getattr(config, "ENABLE_PADDLE_OCR_V4", False)
+        self._paddle_ocr_v4_config = {
+            'model_name': 'PP-OCRv4_mobile_rec',
+            'device': 'gpu' if use_gpu else 'cpu',
+            'enable_mkldnn': enable_mkldnn,
+            'enable_hpi': enable_hpi,
+            'cpu_threads': cpu_threads
+        }
+        
         # 预热：避免首次调用的长延迟（不影响后续性能）
         try:
             warmup_img = np.zeros((32, 32, 3), dtype=np.uint8)
@@ -145,7 +171,10 @@ class TextOcrModel(object):
         self._text_detector = None
         if enable_text_detection_crop:
             try:
-                self._text_detector = _TextDetection(device='gpu' if use_gpu else 'cpu')
+                self._text_detector = TextDetection(device='gpu' if use_gpu else 'cpu',
+                                                    enable_mkldnn=enable_mkldnn,
+                                                    enable_hpi=enable_hpi,
+                                                    cpu_threads=cpu_threads, )
                 logger.info(f"TextDetection 初始化成功: device={'gpu' if use_gpu else 'cpu'}")
             except Exception as e:
                 logger.warning(f"TextDetection 初始化失败: {e}，将不使用文本检测裁剪")
@@ -163,6 +192,32 @@ class TextOcrModel(object):
         # 性能优化：图像预处理参数（可在 config 中覆盖）
         self._max_img_size = getattr(config, "OCR_MAX_IMG", 960)  # 最大尺寸
         self._min_img_size = getattr(config, "OCR_MIN_IMG", 32)   # 最小尺寸（过小不缩放）
+
+    def _get_paddle_ocr_v4_instance(self):
+        """
+        按需加载 PP-OCRv4 实例
+        
+        Returns:
+            TextRecognition 实例，如果禁用或加载失败则返回 None
+        """
+        # 如果已加载，直接返回
+        if self._paddle_ocr_v4_instance is not None:
+            return self._paddle_ocr_v4_instance
+        
+        # 如果未启用，返回 None
+        if not self._paddle_ocr_v4_enabled:
+            return None
+        
+        # 按需加载
+        try:
+            logger.info("正在按需加载 PP-OCRv4 实例...")
+            self._paddle_ocr_v4_instance = TextRecognition(**self._paddle_ocr_v4_config)
+            logger.info(f"PP-OCRv4 实例加载成功: device={self._paddle_ocr_v4_config['device']}")
+            return self._paddle_ocr_v4_instance
+        except Exception as e:
+            logger.warning(f"PP-OCRv4 实例加载失败: {e}，将不使用 v4 模型")
+            self._paddle_ocr_v4_enabled = False  # 禁用，避免重复尝试
+            return None
 
 
 
@@ -331,8 +386,15 @@ class TextOcrModel(object):
             
             # 批量执行识别（PaddleOCR 原生支持）
             if v4:
-                batch_results = self._paddle_ocr_v4_instance.predict(list(processed_images),
-                                                                  batch_size=self._batch_size)
+                v4_instance = self._get_paddle_ocr_v4_instance()
+                if v4_instance is None:
+                    # 如果 v4 实例不可用，回退到标准实例
+                    logger.debug("PP-OCRv4 实例不可用，回退到标准 PaddleOCR 实例")
+                    batch_results = self._paddle_ocr_instance.predict(list(processed_images),
+                                                                      batch_size=self._batch_size)
+                else:
+                    batch_results = v4_instance.predict(list(processed_images),
+                                                        batch_size=self._batch_size)
             else:
                 batch_results = self._paddle_ocr_instance.predict(list(processed_images),
                                                                   batch_size=self._batch_size)
