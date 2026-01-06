@@ -263,7 +263,7 @@ def stock_detection(img_numpy, stock=None, context=None, saveImage=False):
                                 elif '总务' in title:
                                     selected_columns = [6, 7]
                                     logger.debug(f"检测到总务类型，selected_columns: {selected_columns}")
-                            rows = context.ocr_table_cells(line_img, selected_columns=selected_columns)
+                            rows = context.ocr_table_cells(line_img, selected_columns=selected_columns, saveImage=saveImage)
                             logger.info(f"表格识别成功，共 {len(rows)} 行")
                         else:
                             logger.debug(f"line 置信度 {line_conf:.3f} <= 阈值 {CONFIDENCE_THRESHOLD}，跳过表格识别")

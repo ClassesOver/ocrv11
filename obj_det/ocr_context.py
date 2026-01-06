@@ -5,7 +5,7 @@ from obj_det.stock_detect import stock_detection as stock_v1
 from obj_det.bill_detect import bill_detection as bill
 from obj_det.table.table_transformers_extract import extract_table
 from settings import ocr_predict
-from paddleocr import TextRecognition as _TextRecognition
+from paddleocr import TextRecognition as _TextRecognition, TextDetection as _TextDetection
 from loguru import logger
 from typing import List, Optional
 import cv2
@@ -138,6 +138,18 @@ class TextOcrModel(object):
             _ = self._paddle_ocr_instance.predict(warmup_img)
         except Exception as e:
             logger.debug(f"PaddleOCR 预热失败: {e}")
+
+        # 初始化 TextDetection（用于单元格文本检测和裁剪）
+        # 是否启用文本检测裁剪（可通过 config 控制）
+        enable_text_detection_crop = getattr(config, "ENABLE_TEXT_DETECTION_CROP", True)
+        self._text_detector = None
+        if enable_text_detection_crop:
+            try:
+                self._text_detector = _TextDetection(device='gpu' if use_gpu else 'cpu')
+                logger.info(f"TextDetection 初始化成功: device={'gpu' if use_gpu else 'cpu'}")
+            except Exception as e:
+                logger.warning(f"TextDetection 初始化失败: {e}，将不使用文本检测裁剪")
+                self._text_detector = None
 
         self.ocr = self._ocr
         self.vat = vat
@@ -567,13 +579,119 @@ class TextOcrModel(object):
         except:
             return 0
     
-    def ocr_table_cells(self, img, selected_columns: Optional[List[int]] = None):
+    def _crop_text_regions(self, img, dt_boxes, padding=5):
+        """
+        根据检测到的文本边界框裁剪文本区域
+        
+        Args:
+            img: 输入图像
+            dt_boxes: 文本检测边界框列表，每个框是4个点的坐标 [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
+            padding: 边界框扩展像素数，默认5
+            
+        Returns:
+            裁剪后的图像（包含所有文本区域的最小外接矩形）
+        """
+        if not dt_boxes or len(dt_boxes) == 0:
+            return img
+        
+        h, w = img.shape[:2]
+        
+        # 计算所有边界框的最小外接矩形
+        all_x = []
+        all_y = []
+        
+        for box in dt_boxes:
+            # box 是 4 个点的坐标
+            for point in box:
+                x, y = int(point[0]), int(point[1])
+                all_x.append(max(0, min(x, w)))
+                all_y.append(max(0, min(y, h)))
+        
+        if not all_x or not all_y:
+            return img
+        
+        # 计算边界框（添加 padding）
+        x_min = max(0, min(all_x) - padding)
+        y_min = max(0, min(all_y) - padding)
+        x_max = min(w, max(all_x) + padding)
+        y_max = min(h, max(all_y) + padding)
+        
+        # 裁剪图像
+        cropped = img[y_min:y_max, x_min:x_max]
+        
+        return cropped
+
+    def _detect_and_crop_cell_text(self, cell_img):
+        """
+        对单元格图像进行文本检测并裁剪
+        
+        Args:
+            cell_img: 单元格图像
+            
+        Returns:
+            裁剪后的图像
+        """
+        if self._text_detector is None or cell_img is None or cell_img.size == 0:
+            return cell_img
+        
+        try:
+            # 使用 TextDetection 检测文本
+            result = self._text_detector.predict(cell_img)
+            
+            # 提取边界框
+            dt_boxes = []
+            if result is not None:
+                # 处理不同的返回格式
+                if isinstance(result, list):
+                    for item in result:
+                        if isinstance(item, dict):
+                            for key in ['dt_boxes', 'dt_polys', 'points', 'polys']:
+                                if key in item:
+                                    boxes = item[key]
+                                    if isinstance(boxes, (list, np.ndarray)):
+                                        if len(boxes) > 0:
+                                            if isinstance(boxes[0], (list, np.ndarray)):
+                                                dt_boxes.extend(boxes)
+                                            else:
+                                                dt_boxes.append(boxes)
+                                    break
+                        elif isinstance(item, (list, np.ndarray)):
+                            if len(item) > 0:
+                                dt_boxes.append(item)
+                elif isinstance(result, dict):
+                    for key in ['dt_boxes', 'dt_polys', 'points', 'polys']:
+                        if key in result:
+                            boxes = result[key]
+                            if isinstance(boxes, (list, np.ndarray)):
+                                if len(boxes) > 0:
+                                    if isinstance(boxes[0], (list, np.ndarray)):
+                                        dt_boxes.extend(boxes)
+                                    else:
+                                        dt_boxes = boxes
+                            break
+                elif isinstance(result, np.ndarray):
+                    if len(result.shape) >= 2:
+                        dt_boxes = result.tolist() if len(result.shape) == 3 else [result.tolist()]
+            
+            if dt_boxes and len(dt_boxes) > 0:
+                # 裁剪文本区域
+                cropped_img = self._crop_text_regions(cell_img, dt_boxes, padding=5)
+                return cropped_img
+            else:
+                return cell_img
+                
+        except Exception as e:
+            logger.debug(f"单元格文本检测失败: {e}，使用原图")
+            return cell_img
+    
+    def ocr_table_cells(self, img, selected_columns: Optional[List[int]] = None, saveImage=False):
         """
         表格识别并批量OCR识别单元格（封装table_recognize）
         
         Args:
             img: 输入图像（numpy数组）
             selected_columns: 指定要获取的列索引列表（从0开始），如果为None则返回所有列，例如 [0, 2, 3] 表示只获取第0、2、3列
+            saveImage: 是否保存单元格图像，默认为 False
             
         Returns:
             二维列表，格式为 [[row1_cell1, row1_cell2, ...], [row2_cell1, row2_cell2, ...], ...]
@@ -602,6 +720,11 @@ class TextOcrModel(object):
             
             h, w = ocr_img.shape[:2]
             
+            # 如果启用保存图片，创建保存目录
+            if saveImage:
+                cells_fp = os.path.join('images', 'table_cells')
+                os.makedirs(cells_fp, exist_ok=True)
+            
             # 收集所有单元格图像用于批量OCR
             cell_images = []
             cell_positions = []  # 记录每个单元格的行列位置
@@ -622,8 +745,16 @@ class TextOcrModel(object):
                                 if x1 < x2 and y1 < y2:
                                     cell_img = ocr_img[y1:y2, x1:x2]
                                     if cell_img.size > 0:
+                                        # 对单元格图像进行文本检测并裁剪
+                                        cell_img = self._detect_and_crop_cell_text(cell_img)
+                                        
                                         cell_images.append(cell_img)
                                         cell_positions.append((row_idx, col_idx))
+                                        
+                                        # 保存单元格图像（保存裁剪后的图像）
+                                        if saveImage:
+                                            cell_path = os.path.join(cells_fp, f'row_{row_idx}_col_{col_idx}.png')
+                                            cv2.imwrite(cell_path, cell_img)
             
             # 批量OCR识别
             if not cell_images:

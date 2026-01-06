@@ -273,7 +273,7 @@ def stock_detection_v2(img_numpy, stock=None, context=None, saveImage=False):
                         line_conf = label_confidences.get('line', 0.0)
                         if line_conf > CONFIDENCE_THRESHOLD:
                             logger.debug(f"line 置信度 {line_conf:.3f} > 阈值 {CONFIDENCE_THRESHOLD}，开始表格识别和OCR")
-                            rows = context.ocr_table_cells(line_img, selected_columns=[0, 7])
+                            rows = context.ocr_table_cells(line_img, selected_columns=[0, 7], saveImage=saveImage)
                             logger.info(f"表格识别成功，共 {len(rows)} 行")
                         else:
                             logger.debug(f"line 置信度 {line_conf:.3f} <= 阈值 {CONFIDENCE_THRESHOLD}，跳过表格识别")
