@@ -2,7 +2,7 @@ import os
 
 DISABLE_QRCODE = True
 base_dir = os.path.dirname(__file__)
-SaveImg = True
+SaveImg = False
 needInvoiceSummary = False
 ocrRange = "complex"  # complex(复杂版),simple(简单版)
 ########################文字检测################################################
