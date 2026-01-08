@@ -436,7 +436,7 @@ def process_image_pipeline(
         return result
 
 
-def save_yolo_label(label_path: str, detections: List[Dict], save_conf: bool = True) -> None:
+def save_yolo_label(label_path: str, detections: List[Dict], save_conf: bool = False) -> None:
     """
     保存 YOLO 格式的标签文件
     

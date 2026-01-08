@@ -155,7 +155,7 @@ def classify_and_detect():
         classification_conf = float(request.form.get('classification_conf', 0.618))
         detection_conf_str = request.form.get('detection_conf', None)
         detection_conf = float(detection_conf_str) if detection_conf_str else None
-        save_conf = request.form.get('save_conf', 'true').lower() in ('true', '1', 'yes')
+        save_conf = request.form.get('save_conf', 'false').lower() in ('true', '1', 'yes')
         
         # 创建临时目录
         temp_dir = tempfile.mkdtemp(prefix='cls_det_')
