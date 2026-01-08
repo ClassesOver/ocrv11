@@ -5,6 +5,7 @@
 # 如遇到看不懂且无备注的部分，请联系相关人
 import os
 import re
+import hashlib
 from random import random
 
 import cv2
@@ -14,6 +15,7 @@ from PIL import Image, ImageEnhance
 import pyzbar.pyzbar as pyzbar
 from qreader import QReader
 from config import base_dir
+from loguru import logger
 # ============================================
 # 预编译正则表达式以提高性能
 # ============================================
@@ -444,6 +446,50 @@ def get_qrcode_data_v2(img):
             print(f"QReader error: {e}")
             return ''
         return ''
+
+def save_image(img_region, output_dir='signatures'):
+    """
+    保存图片到指定目录，使用checksum作为文件名。
+    
+    Args:
+        img_region: numpy数组，要保存的图片区域
+        output_dir: 输出目录，默认为 'signatures'
+    
+    Returns:
+        tuple: (checksum, filepath) 如果成功，否则 (None, None)
+               checksum: 图片的MD5 checksum
+               filepath: 保存的文件相对路径
+    """
+    try:
+        # 将图片编码为PNG格式（用于计算checksum和保存）
+        success, encoded_img = cv2.imencode('.png', img_region)
+        if not success:
+            logger.warning("图像编码失败")
+            return None, None
+        
+        # 计算图片数据的MD5 checksum
+        img_bytes = encoded_img.tobytes()
+        checksum = hashlib.md5(img_bytes).hexdigest()
+        
+        # 使用checksum作为文件名
+        filename = f"{checksum}.png"
+        # 创建存储目录
+        os.makedirs(os.path.join(base_dir, 'images', output_dir), exist_ok=True)
+        filepath = os.path.join(base_dir, 'images', output_dir, filename)
+        
+        # 如果文件不存在，则保存图片文件（避免重复存储相同内容）
+        if not os.path.exists(filepath):
+            with open(filepath, 'wb') as f:
+                f.write(img_bytes)
+            logger.debug(f"图片已保存: {filename}")
+        else:
+            logger.debug(f"图片已存在，跳过保存: {filename}")
+        
+        return checksum, filepath
+    except Exception as e:
+        logger.warning(f"保存图片文件失败: {e}")
+        return None, None
+
 
 def qrcode_pyzbar(image, val, is_stock=False):
     try:

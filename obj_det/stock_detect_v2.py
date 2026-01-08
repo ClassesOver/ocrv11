@@ -6,7 +6,7 @@ from PIL import Image
 from loguru import logger
 
 import config
-from util.tool import get_amount, get_date, get_num, get_page, get_qrcode_data_v2 as get_qrcode_data
+from util.tool import get_amount, get_date, get_num, get_page, get_qrcode_data_v2 as get_qrcode_data, save_image
 from obj_det.model_loader import load_yolo_model
 
 # 药品入库单类别映射（与模型标签保持一致）
@@ -258,6 +258,13 @@ def stock_detection_v2(img_numpy, stock=None, context=None, saveImage=False):
                         stock[f'{converter[label]}_conf'] = conf
                         # 只有置信度 >= 阈值时才设置 'detected'
                         if conf >= CONFIDENCE_THRESHOLD:
+                            # 对于 director, purchaser, verified_by, accountant 标签，保存图片文件并计算checksum
+                            if label in ('director', 'purchaser', 'verified_by', 'accountant'):
+                                img_region = labels[label]
+                                checksum, filepath = save_image(img_region)
+                                if checksum:
+                                    stock[f'{converter[label]}_checksum'] = checksum
+                                    logger.debug(f"标签 [{label}] 图片已保存: {filepath}, checksum: {checksum}")
                             stock[converter[label]] = 'detected'
                             logger.debug(f"标签 [{label}] 置信度 {conf:.3f} >= 阈值 {CONFIDENCE_THRESHOLD}，设置为 detected")
                             detected = True
