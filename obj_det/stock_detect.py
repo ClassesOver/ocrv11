@@ -171,6 +171,27 @@ def stock_detection(img_numpy, stock=None, context=None, saveImage=False):
                     continue
 
                 x1, y1, x2, y2 = [int(v) for v in xyxy]
+                # qrcode标签边界容错处理
+                if label == 'qrcode':
+                    img_h, img_w = im0.shape[:2]
+                    
+                    # x方向：添加容错边距
+                    margin_x = 5  # 左右边距容错（像素）
+                    x1 = max(0, x1 - margin_x)  # 左边界，确保不小于0
+                    x2 = min(img_w, x2 + margin_x)  # 右边界，确保不超过图像宽度
+                    
+                    # y方向：添加容错边距
+                    margin_y = 5  # 上下边距容错（像素）
+                    y1 = max(0, y1 - margin_y)  # 上边界
+                    y2 = min(img_h, y2 + margin_y)  # 下边界
+                    
+                    # 确保边界值有效
+                    x1 = max(0, min(x1, img_w - 1))
+                    x2 = max(x1 + 1, min(x2, img_w))
+                    y1 = max(0, min(y1, img_h - 1))
+                    y2 = max(y1 + 1, min(y2, img_h))
+                    
+                    logger.debug(f"qrcode 容错后位置: ({x1}, {y1}, {x2}, {y2})")
                 logger.debug(f"检测到标签: {label}, 置信度: {conf:.3f}, 位置: ({x1}, {y1}, {x2}, {y2})")
 
                 if saveImage:
