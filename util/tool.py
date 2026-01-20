@@ -24,7 +24,16 @@ RE_TAX = re.compile(r'-?[0-9]\d*[a-zA-Z]*')
 RE_TITLE = re.compile(r'-?[^:：]*')
 RE_ADDR_BANK = re.compile(r'[0-9\-]*$')
 RE_FLOAT = re.compile(r'-?[0-9]\d*\.*')
-RE_PAGE = re.compile(r'第(.*)页/共(.*)页')
+# 页码提取相关的预编译正则（支持多种格式）
+RE_PAGE = re.compile(r'第(.*?)页/共(.*?)页')  # 第X页/共Y页
+RE_PAGE_REVERSE = re.compile(r'共(.*?)页第(.*?)页')  # 共Y页第X页
+RE_PAGE_COMMA1 = re.compile(r'第(.*?)页[，,]\s*共(.*?)页')  # 第X页，共Y页
+RE_PAGE_COMMA2 = re.compile(r'共(.*?)页[，,]\s*第(.*?)页')  # 共Y页，第X页
+RE_PAGE_PAREN1 = re.compile(r'第(.*?)页\s*[（(]\s*共(.*?)页\s*[）)]')  # 第X页（共Y页）
+RE_PAGE_PAREN2 = re.compile(r'[（(]\s*共(.*?)页\s*[）)]\s*第(.*?)页')  # （共Y页）第X页
+RE_PAGE_SLASH = re.compile(r'(\d+)\s*/\s*(\d+)')  # X/Y
+RE_PAGE_ONLY_CURRENT = re.compile(r'第(.*?)页')  # 仅第X页
+RE_PAGE_ONLY_TOTAL = re.compile(r'共(.*?)页')  # 仅共Y页
 
 # 金额提取相关的预编译正则
 RE_AMOUNT_CURRENCY = re.compile(r'(?:¥|RMB|CNY)\s*([-+]?\d[\d,]*(?:\.\d+)?)', flags=re.IGNORECASE)
@@ -263,19 +272,90 @@ def get_chinese_amount(string):
 
 
 def get_page(string):
-    """提取页码信息（优化版，使用预编译正则）"""
+    """提取页码信息（优化版，使用预编译正则）
+    支持多种格式：
+    - 第X页/共Y页
+    - 共Y页第X页
+    - 第X页，共Y页
+    - 共Y页，第X页
+    - 第X页（共Y页）
+    - （共Y页）第X页
+    - X/Y（简单格式）
+    - 第X页（仅当前页，总页数默认为X）
+    - 共Y页（仅总页数，当前页默认为1）
+    """
     try:
+        if not string:
+            return '1/1'
+        
+        # 字符替换，修复常见OCR错误
         string = string.replace('|', '1').replace('I', '1').replace('l', '1')
-        match = RE_PAGE.search(string)
+        string = string.strip()
+        
+        # 提取数字的辅助函数
+        def extract_num(s):
+            """从字符串中提取第一个数字"""
+            if not s:
+                return None
+            nums = RE_NUM.findall(s.strip())
+            return nums[0] if nums else None
+        
+        # 按优先级尝试匹配各种格式
+        patterns = [
+            # 格式1: 第X页/共Y页
+            (RE_PAGE, lambda m: (extract_num(m.group(1)), extract_num(m.group(2)))),
+            # 格式2: 共Y页第X页
+            (RE_PAGE_REVERSE, lambda m: (extract_num(m.group(2)), extract_num(m.group(1)))),
+            # 格式3: 第X页，共Y页
+            (RE_PAGE_COMMA1, lambda m: (extract_num(m.group(1)), extract_num(m.group(2)))),
+            # 格式4: 共Y页，第X页
+            (RE_PAGE_COMMA2, lambda m: (extract_num(m.group(2)), extract_num(m.group(1)))),
+            # 格式5: 第X页（共Y页）
+            (RE_PAGE_PAREN1, lambda m: (extract_num(m.group(1)), extract_num(m.group(2)))),
+            # 格式6: （共Y页）第X页
+            (RE_PAGE_PAREN2, lambda m: (extract_num(m.group(2)), extract_num(m.group(1)))),
+            # 格式7: X/Y（简单格式）
+            (RE_PAGE_SLASH, lambda m: (m.group(1), m.group(2))),
+        ]
+        
+        for pattern, extractor in patterns:
+            match = pattern.search(string)
+            if match:
+                current, total = extractor(match)
+                if current and total:
+                    return f"{current}/{total}"
+                elif current:
+                    # 只有当前页，假设总页数等于当前页
+                    return f"{current}/{current}"
+                elif total:
+                    # 只有总页数，假设当前页为1
+                    return f"1/{total}"
+        
+        # 尝试仅匹配"第X页"
+        match = RE_PAGE_ONLY_CURRENT.search(string)
         if match:
-            return f"{match.group(1) or 1}/{match.group(2) or 1}"
+            current = extract_num(match.group(1))
+            if current:
+                return f"{current}/{current}"
+        
+        # 尝试仅匹配"共Y页"
+        match = RE_PAGE_ONLY_TOTAL.search(string)
+        if match:
+            total = extract_num(match.group(1))
+            if total:
+                return f"1/{total}"
+        
         # 回退方案：提取所有数字
         nums = RE_NUM.findall(string)
         if len(nums) >= 2:
             return f"{nums[0]}/{nums[1]}"
-        return '-1/-1'
+        elif len(nums) == 1:
+            # 只有一个数字，假设既是当前页也是总页数
+            return f"{nums[0]}/{nums[0]}"
+        
+        return '1/1'
     except Exception:
-        return '-1/-1'
+        return '1/1'
 
 
 def normalize_invoice_type(invoice_type: str) -> str:

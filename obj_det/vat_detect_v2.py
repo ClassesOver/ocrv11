@@ -34,20 +34,23 @@ converter = {'invoice_code': 'invoice_code',
              'title': 'title',
              'total': 'total_amount',
              'tax': 'tax',
+             'total2': 'total_amount2',
+             'tax2': 'tax2',
              'qrcode': 'qrcode',
+             'page': 'page',
              'amount_with_tax': 'amount_with_tax',
              'invoice_type': 'invoice_type'}
 
 if config.ocrRange == "complex":
     converter.update({
         'buy_title': 'buy_title',
-        'buy_tax': 'buy_tax',
-        'buy_addr': 'buy_addr',
-        'buy_bank': 'buy_bank',
+        # 'buy_tax': 'buy_tax',
+        # 'buy_addr': 'buy_addr',
+        # 'buy_bank': 'buy_bank',
         'sale_title': 'sale_title',
-        'sale_tax': 'sale_tax',
-        'sale_addr': 'sale_addr',
-        'sale_bank': 'sale_bank',
+        # 'sale_tax': 'sale_tax',
+        # 'sale_addr': 'sale_addr',
+        # 'sale_bank': 'sale_bank',
         'seal_1': 'seal_1',
         'seal_2': 'seal_2',
     })
@@ -273,12 +276,14 @@ def process_ocr_text(label: str, text: str) -> str:
         return num_text[-12:] if num_text else ''
     elif label == 'bill_date':
         return get_date(text)
-    elif label in ('total', 'amount_with_tax', 'tax'):
+    elif label in ('total', 'amount_with_tax', 'tax', 'total2', 'tax2'):
         return get_amount(text)
     elif label.startswith(('buy_', 'sale_')):
         return process_buy_sale_field(label, text)
     elif label == 'title':
         return text
+    elif label == 'page':
+        return get_page(text)
     else:
         return text
 
@@ -327,7 +332,7 @@ def process_qrcode(labels: dict, label_confidences: dict, ocr_results_dict: dict
     
     try:
         logger.debug("开始处理二维码")
-        qr_text = get_qrcode_data(Image.fromarray(labels['qrcode']))
+        qr_text = get_qrcode_data_v2(Image.fromarray(labels['qrcode']))
         if qr_text:
             invoice['qrcode'] = qr_text
             invoice['qrcode_conf'] = label_confidences.get('qrcode', 0.0)
@@ -446,7 +451,7 @@ def post_process_invoice(invoice: dict):
                 invoice[val] = '¥ 0.00'
             else:
                 invoice[val] = ""
-    
+    invoice.setdefault('page', '1/1')
     # 设置发票类型名称和处理重复数据
     invoice_type = invoice.get('invoice_type', '')
     invoice['invoice_type_name'] = type_converter_name.get(invoice_type, '未识别的发票')

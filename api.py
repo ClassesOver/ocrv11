@@ -316,101 +316,141 @@ def classify_and_detect():
         return jsonify({'result': f"处理失败: {error_msg}", 'code': 500})
 
 
-@app.route("/get_image", methods=["GET"])
+def _get_image_path(checksum, prefix='signatures'):
+    """
+    根据checksum获取图片文件路径（辅助函数）
+    
+    Args:
+        checksum: 图片的MD5 checksum
+        prefix: 目录前缀，默认为 'signatures'
+    
+    Returns:
+        文件路径，如果不存在则返回None
+    """
+    # 验证checksum格式（MD5是32位十六进制字符串）
+    checksum_lower = checksum.lower().strip()
+    if len(checksum_lower) != 32 or not all(c in '0123456789abcdef' for c in checksum_lower):
+        return None
+    
+    # 验证并清理prefix参数，防止路径遍历攻击
+    if not prefix:
+        prefix = 'signatures'
+    
+    # 防止路径遍历攻击：不允许包含 ..、绝对路径、特殊字符
+    if '..' in prefix or os.path.isabs(prefix) or ('\\' in prefix and os.name != 'nt'):
+        return None
+    
+    # 清理路径分隔符，统一使用系统分隔符
+    prefix = prefix.replace('\\', '/').strip('/')
+    if not prefix:
+        prefix = 'signatures'
+    
+    # 构建文件路径
+    filename = f"{checksum_lower}.png"
+    filepath = os.path.join(config.base_dir, 'images', prefix, filename)
+    
+    # 规范化路径并验证安全性
+    filepath = os.path.normpath(filepath)
+    
+    # 确保路径在base_dir范围内，防止路径遍历
+    base_dir_normalized = os.path.normpath(config.base_dir)
+    try:
+        # 使用commonpath确保路径在base_dir内（跨平台安全）
+        common_path = os.path.commonpath([base_dir_normalized, filepath])
+        if common_path != base_dir_normalized:
+            logger.warning(f"路径遍历攻击尝试: {filepath}")
+            return None
+    except ValueError:
+        # 如果路径不在同一驱动器（Windows）或完全不同，视为不合法
+        logger.warning(f"路径不在base_dir范围内: {filepath}")
+        return None
+    
+    # 检查文件是否存在
+    if os.path.exists(filepath) and os.path.isfile(filepath):
+        return filepath
+    
+    # 如果指定路径不存在，尝试从常见位置查找
+    common_prefixes = ['signatures', 'images/signatures']
+    for common_prefix in common_prefixes:
+        if common_prefix == prefix:
+            continue  # 已经尝试过了
+        
+        test_path = os.path.join(config.base_dir, common_prefix, filename)
+        test_path = os.path.normpath(test_path)
+        
+        # 验证路径安全性
+        try:
+            test_common_path = os.path.commonpath([base_dir_normalized, test_path])
+            is_safe = (test_common_path == base_dir_normalized)
+        except ValueError:
+            is_safe = False
+        
+        if is_safe and os.path.exists(test_path) and os.path.isfile(test_path):
+            return test_path
+    
+    return None
+
+
+@app.route("/get_image", methods=["POST"])
 @auth
 def get_image():
     """
-    根据checksum获取保存的图片文件
+    根据checksum批量获取保存的图片文件，返回base64编码
     
-    请求参数（query string）:
-        checksum: 图片的MD5 checksum（32位十六进制字符串，必需）
-        prefix: 可选的目录前缀，默认为 'signatures'，也支持 'images' 及其子目录
+    请求体（JSON）:
+        {
+            "key1": "checksum1",
+            "key2": "checksum2",
+            ...
+        }
+        其中key为标签名，value为图片的MD5 checksum（32位十六进制字符串）
     
-    返回:
-        图片文件（如果存在），否则返回错误信息
+    返回（JSON）:
+        {
+            "key1": "base64data1",
+            "key2": "base64data2",
+            ...
+        }
+        如果某个checksum对应的图片不存在，该key的值为null
     """
     try:
-        checksum = request.args.get('checksum', '').strip()
-        prefix = request.args.get('prefix', 'signatures').strip()
+        # 获取JSON请求体
+        if not request.is_json:
+            return jsonify({'result': "请求体必须是JSON格式", 'code': 400})
         
-        # 验证checksum参数
-        if not checksum:
-            return jsonify({'result': "请提供checksum参数", 'code': 400})
+        data = request.get_json()
+        if not data or not isinstance(data, dict):
+            return jsonify({'result': "请求体必须是一个对象（字典）", 'code': 400})
         
-        # 验证checksum格式（MD5是32位十六进制字符串）
-        checksum_lower = checksum.lower()
-        if len(checksum_lower) != 32 or not all(c in '0123456789abcdef' for c in checksum_lower):
-            return jsonify({'result': "checksum格式错误，应为32位十六进制字符串", 'code': 400})
+        if not data:
+            return jsonify({'result': "请求体不能为空", 'code': 400})
         
-        # 验证并清理prefix参数，防止路径遍历攻击
-        if not prefix:
-            prefix = 'signatures'
+        result = {}
+        # 从查询参数获取prefix（可选，默认为'signatures'）
+        prefix = request.args.get('prefix', 'signatures').strip() or 'signatures'
         
-        # 防止路径遍历攻击：不允许包含 ..、绝对路径、特殊字符
-        if '..' in prefix or os.path.isabs(prefix) or ('\\' in prefix and os.name != 'nt'):
-            return jsonify({'result': "目录前缀不合法", 'code': 400})
-        
-        # 清理路径分隔符，统一使用系统分隔符
-        prefix = prefix.replace('\\', '/').strip('/')
-        if not prefix:
-            prefix = 'signatures'
-        
-        # 构建文件路径
-        filename = f"{checksum_lower}.png"
-        filepath = os.path.join(config.base_dir, 'images', prefix, filename)
-        
-        # 规范化路径并验证安全性
-        filepath = os.path.normpath(filepath)
-        
-        # 确保路径在base_dir范围内，防止路径遍历
-        base_dir_normalized = os.path.normpath(config.base_dir)
-        try:
-            # 使用commonpath确保路径在base_dir内（跨平台安全）
-            common_path = os.path.commonpath([base_dir_normalized, filepath])
-            if common_path != base_dir_normalized:
-                logger.warning(f"路径遍历攻击尝试: {filepath}")
-                return jsonify({'result': "路径不合法", 'code': 403})
-        except ValueError:
-            # 如果路径不在同一驱动器（Windows）或完全不同，视为不合法
-            logger.warning(f"路径不在base_dir范围内: {filepath}")
-            return jsonify({'result': "路径不合法", 'code': 403})
-        
-        # 检查文件是否存在
-        if os.path.exists(filepath) and os.path.isfile(filepath):
-            logger.debug(f"返回图片: {filepath}")
-            return send_file(
-                filepath,
-                mimetype='image/png',
-                as_attachment=False
-            )
-        
-        # 如果指定路径不存在，尝试从常见位置查找
-        common_prefixes = ['signatures', 'images/signatures']
-        for common_prefix in common_prefixes:
-            if common_prefix == prefix:
-                continue  # 已经尝试过了
+        # 处理每个key-checksum对
+        for key, checksum in data.items():
+            if not isinstance(key, str) or not isinstance(checksum, str):
+                result[key] = None
+                continue
             
-            test_path = os.path.join(config.base_dir, common_prefix, filename)
-            test_path = os.path.normpath(test_path)
+            # 获取图片文件路径
+            filepath = _get_image_path(checksum, prefix)
             
-            # 验证路径安全性
-            try:
-                test_common_path = os.path.commonpath([base_dir_normalized, test_path])
-                is_safe = (test_common_path == base_dir_normalized)
-            except ValueError:
-                is_safe = False
-            
-            if is_safe and os.path.exists(test_path) and os.path.isfile(test_path):
-                logger.debug(f"从备用路径返回图片: {test_path}")
-                return send_file(
-                    test_path,
-                    mimetype='image/png',
-                    as_attachment=False
-                )
-        
-        # 文件不存在
-        logger.warning(f"图片不存在 (checksum: {checksum}, prefix: {prefix})")
-        return jsonify({'result': f"图片不存在 (checksum: {checksum})", 'code': 404})
+            if filepath:
+                try:
+                    # 读取文件并转换为base64
+                    with open(filepath, 'rb') as f:
+                        image_bytes = f.read()
+                        base64_data = base64.b64encode(image_bytes).decode('utf-8')
+                        result[key] = base64_data
+                        logger.debug(f"成功获取图片: {key} -> {filepath}")
+                except Exception as e:
+                    logger.warning(f"读取图片失败 {key} ({checksum}): {e}")
+            else:
+                logger.warning(f"图片不存在: {key} (checksum: {checksum})")
+        return jsonify(result)
         
     except Exception as e:
         error_msg = str(e)

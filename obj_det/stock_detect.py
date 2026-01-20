@@ -301,7 +301,7 @@ def stock_detection(img_numpy, stock=None, context=None, saveImage=False):
             else:
                 stock.setdefault(key, "")
         stock.setdefault('total_amount', stock.get('total') or stock.get('total2') or stock.get('total3') or '¥ 0.00')
-        stock.setdefault('page', '-1/-1')
+        stock.setdefault('page', '1/1')
         stock['_stock_detected'] = True
         title = stock.get('title') or ''
         if '总务' in title or '结算' in title:
