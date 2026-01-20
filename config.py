@@ -85,3 +85,6 @@ STOCK_V2_MODEL_FORMAT = 'onnx'
 VAT_MODEL_FORMAT = 'onnx'
 ######################YOLOv检测模型###################################################
 force_ocr_table = False
+
+STOCK_V2_CONFIDENCE_THRESHOLD =  float(os.getenv("STOCK_V2_CONFIDENCE_THRESHOLD", '0.618'))
+STOCK_V1_CONFIDENCE_THRESHOLD =  float(os.getenv("STOCK_V1_CONFIDENCE_THRESHOLD", '0.618'))
