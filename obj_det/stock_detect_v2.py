@@ -24,8 +24,8 @@ converter = {
     'line': 'line',
     'director': 'director',
     'purchaser': 'purchaser',
-    'note': 'note',
-    'rk_way': 'rk_way',
+    # 'note': 'note',
+    # 'rk_way': 'rk_way',
 }
 
 # 模型目录与输入尺寸
@@ -167,12 +167,12 @@ def stock_detection_v2(img_numpy, stock=None, context=None, saveImage=False):
                     img_h, img_w = im0.shape[:2]
                     
                     # x方向：添加容错边距
-                    margin_x = 5  # 左右边距容错（像素）
+                    margin_x = 6  # 左右边距容错（像素）
                     x1 = max(0, x1 - margin_x)  # 左边界，确保不小于0
                     x2 = min(img_w, x2 + margin_x)  # 右边界，确保不超过图像宽度
                     
                     # y方向：添加容错边距
-                    margin_y = 5  # 上下边距容错（像素）
+                    margin_y = 6  # 上下边距容错（像素）
                     y1 = max(0, y1 - margin_y)  # 上边界
                     y2 = min(img_h, y2 + margin_y)  # 下边界
                     

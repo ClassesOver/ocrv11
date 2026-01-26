@@ -7,7 +7,7 @@ import config
 from PIL import Image
 from datetime import datetime
 from util.tool import *
-from util.tool import _vat_qrcode
+from util.tool import _vat_qrcode,_vat_qrcode_v2
 from functools import lru_cache
 from obj_det.model_loader import load_yolo_model
 from loguru import logger
@@ -106,18 +106,18 @@ def judge_invoice_type(title, invoice):
     if not title:
         return False
     if title.startswith('电子发票'):
-        if "普通" in title:
+        if "普" in title or '通' in title:
             invoice_type = "32"
         else:
             invoice_type = "31"
     else:
-        if "专用" in title:
+        if "专" in title or '用':
             if '电子' in title:
                 invoice_type = '08'
             else:
                 invoice_type = '01'
             invoice['invoice_type'] = "01"
-        if "普通" in title:
+        if "普" in title or '通' in title:
             if '电子' in title:
                 invoice_type = '10'
             else:
@@ -340,7 +340,7 @@ def process_qrcode(labels: dict, label_confidences: dict, ocr_results_dict: dict
             
             # 解析二维码数据并更新 invoice（会覆盖 OCR 结果中的相关字段）
             try:
-                _vat_qrcode(qr_text, invoice)
+                _vat_qrcode_v2(qr_text, invoice)
                 # 检查关键字段是否设置成功，判断二维码解析是否成功
                 if invoice.get('invoice_type') and invoice.get('invoice_number'):
                     qrcode_parsed = True
@@ -354,7 +354,6 @@ def process_qrcode(labels: dict, label_confidences: dict, ocr_results_dict: dict
     
     # 如果二维码识别成功，处理 title 和金额字段
     if qr_text:
-        _update_title_from_qrcode(invoice, ocr_results_dict)
         if qrcode_parsed:
             _supplement_amount_fields(invoice, ocr_results_dict)
     

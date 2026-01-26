@@ -460,6 +460,22 @@ def _vat_qrcode(barcodeData, invoice):
     if invoice['invoice_type'] in ('04', '10'):
         invoice['check_code'] = get_num(barcode_list[6])
 
+def _vat_qrcode_v2(barcodeData, invoice):
+    barcode_list = barcodeData.split(',')
+    invoice['invoice_code'] = barcode_list[2].strip()
+    invoice['invoice_number'] = barcode_list[3].strip()
+    if barcode_list[1] in ('31', '32'):
+        invoice['amount_with_tax'] = get_float(barcode_list[4])
+        invoice['total_amount'] = '¥ 0.00'
+        invoice['tax'] = '¥ 0.00'
+    else:
+        invoice['total_amount'] = get_float(barcode_list[4])
+        invoice['tax'] = '¥ 0.00'
+        invoice['amount_with_tax'] = '¥ 0.00'
+    invoice['billing_date'] = datetime.strptime(barcode_list[5], '%Y%m%d').strftime('%Y年%m月%d日')
+    if invoice['invoice_type'] in ('04', '10'):
+        invoice['check_code'] = get_num(barcode_list[6])
+
 
 def _stock_qrcode(barcodeData, stock):
     barcode_list = [x.split(':')[1] for x in barcodeData.split(' ')]
@@ -494,7 +510,6 @@ def get_qrcode_data(img, index=0):
         return barcodes[0].data.decode("utf-8")
     else:
         return get_qrcode_data(img, index + 1)
-
 
 def get_qrcode_data_v2(img):
     # 先尝试使用 pyzbar 方法

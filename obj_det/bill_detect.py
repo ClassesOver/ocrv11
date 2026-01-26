@@ -229,6 +229,45 @@ def bill_detection(img_numpy, invoice=None, context=None, saveImage=False):
                             invoice['qrcode'] = qr_text
                             invoice['qrcode_conf'] = label_confidences.get('qrcode', 0.0)
                             logger.info(f"二维码识别成功: {qr_text}, 发票类型: {invoice['invoice_type']}")
+                            # 格式: CZ-EI-33,1.0.0,33060125,2225129212,884297,20251201,14693.80
+                            # 字段索引: 0=类型, 1=版本, 2=发票代码, 3=发票号码, 4=校验码, 5=开票日期, 6=含税金额
+                            qr_fields = qr_text.split(',')
+                            if len(qr_fields) >= 7:
+                                try:
+                                    invoice_code_raw = qr_fields[2].strip()
+                                    if invoice_code_raw:
+                                        invoice['invoice_code'] = get_num(invoice_code_raw)
+                                        logger.debug(f"从二维码更新 invoice_code: {invoice['invoice_code']}")
+                                    
+                                    invoice_number_raw = qr_fields[3].strip()
+                                    if invoice_number_raw:
+                                        invoice['invoice_number'] = get_num(invoice_number_raw)
+                                        logger.debug(f"从二维码更新 invoice_number: {invoice['invoice_number']}")
+                                    
+                                    check_code_raw = qr_fields[4].strip()
+                                    if check_code_raw:
+                                        invoice['check_code'] = get_num(check_code_raw)
+                                        logger.debug(f"从二维码更新 check_code: {invoice['check_code']}")
+
+                                    billing_date_raw = qr_fields[5].strip()
+                                    if billing_date_raw:
+                                        invoice['billing_date'] = get_date(billing_date_raw)
+                                        logger.debug(f"从二维码更新 billing_date: {invoice['billing_date']}")
+                                    
+                                    # amount_with_tax: 格式化为 ¥ xx.xx
+                                    amount_with_tax_raw = qr_fields[6].strip()
+                                    if amount_with_tax_raw:
+                                        invoice['amount_with_tax'] = get_amount(amount_with_tax_raw)
+                                        logger.debug(f"从二维码更新 amount_with_tax: {invoice['amount_with_tax']}")
+                                    
+                                    logger.info(f"从二维码成功更新发票字段: invoice_code={invoice.get('invoice_code')}, "
+                                              f"invoice_number={invoice.get('invoice_number')}, "
+                                              f"check_code={invoice.get('check_code')}, "
+                                              f"billing_date={invoice.get('billing_date')}, "
+                                              f"amount_with_tax={invoice.get('amount_with_tax')}")
+                                except Exception as e:
+                                    logger.warning(f"解析二维码字段失败: {e}")
+                            
                             detected = True
                     except Exception as e:
                         logger.warning(f"二维码识别失败: {e}")
