@@ -1,0 +1,13 @@
+{
+    "input_path": "D:\\ocr\\ocrv5\\ocr\\code\\images\\stock_v1\\col2.png",
+    "page_index": null,
+    "class_ids": [
+        1
+    ],
+    "scores": [
+        0.9713600277900696
+    ],
+    "label_names": [
+        "180_degree"
+    ]
+}

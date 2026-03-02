@@ -33,7 +33,7 @@ GPUID = 0  # 调用GPU序号
 # PaddleOCR 识别模型（可通过环境变量覆盖）
 # PADDLE_REC_MODEL_NAME：模型名称，默认为 ch_SVTRv2_rec
 # PADDLE_REC_MODEL_DIR：模型权重目录（相对路径会自动拼到 base_dir）
-PADDLE_REC_MODEL_NAME = os.getenv("PADDLE_REC_MODEL_NAME", "PP-OCRv4_mobile_rec")
+PADDLE_REC_MODEL_NAME = os.getenv("PADDLE_REC_MODEL_NAME", "PP-OCRv5_server_rec")
 PADDLE_REC_MODEL_DIR = os.getenv("PADDLE_REC_MODEL_DIR")
 
 # vgg文字方向检测模型
@@ -80,11 +80,5 @@ TIMEOUT = 30  # 超时时间
 
 ######################YOLOv检测模型###################################################
 BILL_MODEL_FORMAT = 'onnx'
-STOCK_V1_MODEL_FORMAT = 'onnx'
-STOCK_V2_MODEL_FORMAT = 'onnx'
-VAT_MODEL_FORMAT = 'onnx'
 ######################YOLOv检测模型###################################################
 force_ocr_table = False
-
-STOCK_V2_CONFIDENCE_THRESHOLD =  float(os.getenv("STOCK_V2_CONFIDENCE_THRESHOLD", '0.618'))
-STOCK_V1_CONFIDENCE_THRESHOLD =  float(os.getenv("STOCK_V1_CONFIDENCE_THRESHOLD", '0.618'))

@@ -1,5 +1,6 @@
 from obj_det.vat_detect import invoice_detection as vat
 from obj_det.vat_detect_v2 import invoice_detection as vat_v2
+from obj_det.stock_detect_v3 import stock_detection_v3 as stock_v3
 from obj_det.stock_detect_v2 import stock_detection_v2 as stock_v2
 from obj_det.stock_detect import stock_detection as stock_v1
 from obj_det.bill_detect import bill_detection as bill
@@ -185,6 +186,7 @@ class TextOcrModel(object):
         self.vat_v2 = vat_v2
         self.stock_v1 = stock_v1
         self.stock_v2 = stock_v2
+        self.stock_v3 = stock_v3
         # 默认入库单检测使用新版（药品），但仍保留别名以兼容调用
         self.stock = self.stock_v2
         self.bill = bill
@@ -653,7 +655,7 @@ class TextOcrModel(object):
         Returns:
             裁剪后的图像（包含所有文本区域的最小外接矩形）
         """
-        if not dt_boxes or len(dt_boxes) == 0:
+        if dt_boxes is None or len(dt_boxes) == 0:
             return img
         
         h, w = img.shape[:2]
@@ -677,6 +679,66 @@ class TextOcrModel(object):
         y_min = max(0, min(all_y) - padding)
         x_max = min(w, max(all_x) + padding)
         y_max = min(h, max(all_y) + padding)
+        
+        # 裁剪图像
+        cropped = img[y_min:y_max, x_min:x_max]
+        
+        return cropped
+    
+    def _crop_single_box(self, img, box, padding=5):
+        """
+        根据单个文本边界框裁剪文本区域
+        
+        Args:
+            img: 输入图像
+            box: 单个边界框，4个点的坐标 [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
+            padding: 边界框扩展像素数，默认5
+            
+        Returns:
+            裁剪后的图像
+        """
+        if img is None or img.size == 0:
+            return img
+        
+        if box is None:
+            return img
+        
+        # 确保 box 是列表格式（如果是 numpy 数组则转换）
+        if isinstance(box, np.ndarray):
+            box = box.tolist()
+        
+        if len(box) == 0:
+            return img
+        
+        h, w = img.shape[:2]
+        
+        # 计算单个边界框的最小外接矩形
+        all_x = []
+        all_y = []
+        
+        # box 是 4 个点的坐标
+        for point in box:
+            # 确保 point 是列表格式
+            if isinstance(point, np.ndarray):
+                point = point.tolist()
+            
+            if len(point) >= 2:
+                x, y = int(point[0]), int(point[1])
+                all_x.append(max(0, min(x, w)))
+                all_y.append(max(0, min(y, h)))
+        
+        if not all_x or not all_y:
+            return img
+        
+        # 计算边界框（添加 padding）
+        x_min = max(0, min(all_x) - padding)
+        y_min = max(0, min(all_y) - padding)
+        x_max = min(w, max(all_x) + padding)
+        y_max = min(h, max(all_y) + padding)
+        
+        # 确保坐标有效
+        if x_min >= x_max or y_min >= y_max:
+            return img
         
         # 裁剪图像
         cropped = img[y_min:y_max, x_min:x_max]
@@ -844,6 +906,90 @@ class TextOcrModel(object):
             logger.error(f"表格单元格OCR识别错误: {e}", exc_info=True)
             return []
     
+    def ocr_columns_cells(self, col_img, saveImage=False, col_name='col'):
+        """
+        对列图像进行文本检测并批量OCR识别单元格
+        
+        Args:
+            col_img: 列图像（numpy数组）
+            saveImage: 是否保存单元格图像，默认为 False
+            col_name: 列名称，用于保存图像时的文件名前缀，默认为 'col'
+            
+        Returns:
+            识别结果列表，每个元素是识别出的文本
+        """
+        cells = []
+        if col_img is not None and isinstance(col_img, np.ndarray) and col_img.size > 0:
+            logger.debug(f"开始处理 {col_name} 列图像")
+            
+            # 如果启用保存图片，创建保存目录
+            if saveImage:
+                cells_fp = os.path.join('images', 'column_cells')
+                os.makedirs(cells_fp, exist_ok=True)
+            
+            if self._text_detector:
+                cropped_img_lst = []
+                try:
+                    dets = self._text_detector.predict(col_img)
+                    # 处理不同的返回格式
+                    if isinstance(dets, list):
+                        for det in dets:
+                            if isinstance(det, dict):
+                                dt_boxes = det.get('dt_polys', [])
+                            elif isinstance(det, (list, np.ndarray)):
+                                dt_boxes = det if isinstance(det, list) else det.tolist()
+                            else:
+                                continue
+                            
+                            # 确保 dt_boxes 是列表
+                            if isinstance(dt_boxes, np.ndarray):
+                                dt_boxes = dt_boxes.tolist()
+                            
+                            if len(dt_boxes) > 0:
+                                for idx, dt_box in enumerate(dt_boxes):
+                                    # 确保 dt_box 是列表格式
+                                    if isinstance(dt_box, np.ndarray):
+                                        dt_box = dt_box.tolist()
+                                    cropped_img = self._crop_single_box(col_img, dt_box, padding=5)
+                                    if cropped_img is not None and cropped_img.size > 0:
+                                        cropped_img_lst.append(cropped_img)
+                                        
+                                        # 保存单元格图像
+                                        if saveImage:
+                                            cell_path = os.path.join(cells_fp, f'{col_name}_cell_{len(cropped_img_lst)-1}.png')
+                                            cv2.imwrite(cell_path, cropped_img)
+                    elif isinstance(dets, dict):
+                        dt_boxes = dets.get('dt_polys', [])
+                        if isinstance(dt_boxes, np.ndarray):
+                            dt_boxes = dt_boxes.tolist()
+                        if len(dt_boxes) > 0:
+                            for idx, dt_box in enumerate(dt_boxes):
+                                if isinstance(dt_box, np.ndarray):
+                                    dt_box = dt_box.tolist()
+                                cropped_img = self._crop_single_box(col_img, dt_box, padding=5)
+                                if cropped_img is not None and cropped_img.size > 0:
+                                    cropped_img_lst.append(cropped_img)
+                                    
+                                    # 保存单元格图像
+                                    if saveImage:
+                                        cell_path = os.path.join(cells_fp, f'{col_name}_cell_{len(cropped_img_lst)-1}.png')
+                                        cv2.imwrite(cell_path, cropped_img)
+                except Exception as e:
+                    logger.error(f"{col_name} 列文本检测错误: {e}", exc_info=True)
+                
+                if cropped_img_lst:
+                    cells = self.batch_ocr(cropped_img_lst, use_paddle_first=True, preprocess=False, v4=False)
+                    logger.info(f"{col_name} 列识别成功，共 {len(cells)} 个文本区域")
+                else:
+                    logger.warning(f"{col_name} 列未检测到文本区域")
+            else:
+                logger.warning(f"{col_name} 列文本检测器未初始化，跳过识别")
+        else:
+            logger.warning(f"{col_name} 列图像无效，跳过识别")
+
+        return cells
+
+
     def batch_table_recognize(self, images):
         """
         批量表格识别推理

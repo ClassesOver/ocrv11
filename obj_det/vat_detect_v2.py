@@ -75,17 +75,10 @@ if config.GPU:
 else:
     device = 'cpu'
 
-try:
-    model = load_yolo_model(model_dir, model_name='best', model_format=model_format, task='detect')
-except Exception as e:
-    logger.error(f"加载 YOLOv11 模型失败: {e}")
-    # 回退到直接指定路径的方式（兼容旧配置）
-    pub_weights = f"models/vat/best.onnx"
-    logger.warning(f"使用回退方式加载模型: {pub_weights}")
-    model = YOLO(pub_weights, task='detect')
+model = load_yolo_model(model_dir, model_name='best', model_format='pt', task='detect')
 
 # 置信度阈值（可配置，默认 0.618）
-CONFIDENCE_THRESHOLD = getattr(config, "VAT_V2_CONFIDENCE_THRESHOLD", 0.618)
+CONFIDENCE_THRESHOLD = getattr(config, "VAT_V2_CONFIDENCE_THRESHOLD", 0.5)
 
 # 跳过 OCR 的标签（仅检测，不识别文本）
 SKIP_OCR_LABELS = {'qrcode', 'seal_1', 'seal_2'}
@@ -105,7 +98,9 @@ def judge_invoice_type(title, invoice):
     invoice_type = None
     if not title:
         return False
-    if title.startswith('电子发票'):
+    invoice_number = invoice.get('invoice_number')
+    invoice_code = invoice.get('invoice_code')
+    if title.startswith('电子发票') or (len(invoice_number) == 20 and not invoice_code):
         if "普" in title or '通' in title:
             invoice_type = "32"
         else:
@@ -305,13 +300,9 @@ def update_invoice_from_ocr(ocr_results_dict: dict, invoice: dict):
         # 更新 invoice
         if label in converter:
             invoice[converter[label]] = processed_text
-    
-    # 处理 title 和 invoice_type（根据 title 判断）
-    if invoice.get('title') and not invoice.get('invoice_type'):
-        judge_invoice_type(invoice.get('title'), invoice)
 
 
-def process_qrcode(labels: dict, label_confidences: dict, ocr_results_dict: dict, invoice: dict) -> bool:
+def process_qrcode(labels: dict, label_confidences: dict, ocr_results_dict: dict, invoice: dict, img_numpy=None) -> bool:
     """
     处理二维码，更新invoice
     
@@ -320,42 +311,51 @@ def process_qrcode(labels: dict, label_confidences: dict, ocr_results_dict: dict
         label_confidences: 标签置信度字典
         ocr_results_dict: OCR识别结果字典
         invoice: 发票信息字典
+        img_numpy: 原始图像（numpy数组），当labels['qrcode']不存在时使用
         
     Returns:
         bool: 二维码是否解析成功
     """
-    if 'qrcode' not in labels:
-        return False
-    
     qrcode_parsed = False
     qr_text = None
     
+    # 确定要使用的图像区域
+    if 'qrcode' in labels:
+        # 使用检测到的二维码区域
+        qr_img = Image.fromarray(labels['qrcode'])
+        qrcode_conf = label_confidences.get('qrcode', 0.0)
+        logger.debug("使用检测到的二维码区域进行解析")
+    elif img_numpy is not None:
+        # 如果labels['qrcode']不存在，使用整个图片
+        qr_img = Image.fromarray(img_numpy)
+        qrcode_conf = 0.0
+        logger.debug("二维码区域未检测到，使用整个图片进行解析")
+    else:
+        logger.debug("二维码区域未检测到，且未提供原始图像，跳过二维码解析")
+        return False
+    
     try:
         logger.debug("开始处理二维码")
-        qr_text = get_qrcode_data_v2(Image.fromarray(labels['qrcode']))
+        qr_text = get_qrcode_data_v2(qr_img)
         if qr_text:
             invoice['qrcode'] = qr_text
-            invoice['qrcode_conf'] = label_confidences.get('qrcode', 0.0)
+            invoice['qrcode_conf'] = qrcode_conf
             logger.info(f"二维码识别成功: {qr_text}")
-            
-            # 解析二维码数据并更新 invoice（会覆盖 OCR 结果中的相关字段）
             try:
                 _vat_qrcode_v2(qr_text, invoice)
-                # 检查关键字段是否设置成功，判断二维码解析是否成功
-                if invoice.get('invoice_type') and invoice.get('invoice_number'):
-                    qrcode_parsed = True
-                    logger.debug(f"二维码解析成功，发票类型: {invoice.get('invoice_type')}, 发票号码: {invoice.get('invoice_number')}")
-                else:
-                    logger.warning("二维码解析后关键字段缺失")
+                qrcode_parsed = True
             except Exception as e:
+                qrcode_parsed = False
                 logger.warning(f"二维码解析失败: {e}", exc_info=True)
+        else:
+            qrcode_parsed = False
     except Exception as e:
+        qrcode_parsed = False
         logger.warning(f"二维码识别失败: {e}")
-    
     # 如果二维码识别成功，处理 title 和金额字段
-    if qr_text:
-        if qrcode_parsed:
-            _supplement_amount_fields(invoice, ocr_results_dict)
+
+    if qrcode_parsed:
+        _supplement_amount_fields(invoice, ocr_results_dict)
     
     return qrcode_parsed
 
@@ -454,7 +454,6 @@ def post_process_invoice(invoice: dict):
     # 设置发票类型名称和处理重复数据
     invoice_type = invoice.get('invoice_type', '')
     invoice['invoice_type_name'] = type_converter_name.get(invoice_type, '未识别的发票')
-    judge_invoice_repeat_data(invoice)
 
 
 
@@ -583,11 +582,13 @@ def invoice_detection(img_numpy, invoice=None, context=None, saveImage=False):
             update_invoice_from_ocr(ocr_results_dict, invoice)
 
             # ========== 第二步：然后解析二维码更新 invoice ==========
-            process_qrcode(labels, label_confidences, ocr_results_dict, invoice)
+            process_qrcode(labels, label_confidences, ocr_results_dict, invoice, img_numpy)
 
             # ========== 第三步：处理印章（seal_*） ==========
             process_seals(label_coords, label_confidences, invoice)
 
+            if invoice.get('title') and not invoice.get('invoice_type'):
+                judge_invoice_type(invoice.get('title'), invoice)
             # ========== 第四步：后处理（税额计算、负数处理、填充缺失字段等） ==========
             post_process_invoice(invoice)
 

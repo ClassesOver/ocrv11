@@ -33,31 +33,37 @@ _detection_models = {}
 CLASS_TO_MODEL_MAP = {
     'stock1': {
         'dir': 'models/stock_1',
-        'format': getattr(config, 'STOCK_V1_MODEL_FORMAT', 'onnx'),
+        'format': getattr(config, 'STOCK_V1_MODEL_FORMAT', 'pt'),
         'imgsz': getattr(config, 'STOCK_V1_IMGSZ', 640),
         'conf': getattr(config, 'STOCK_V1_CONFIDENCE_THRESHOLD', 0.618)
     },
     'stock2': {
         'dir': 'models/stock_2',
-        'format': getattr(config, 'STOCK_V2_MODEL_FORMAT', 'onnx'),
+        'format': getattr(config, 'STOCK_V2_MODEL_FORMAT', 'pt'),
         'imgsz': getattr(config, 'STOCK_V2_IMGSZ', 640),
         'conf': getattr(config, 'STOCK_V2_CONFIDENCE_THRESHOLD', 0.618)
     },
+    'stock3': {
+        'dir': 'models/stock_3',
+        'format': getattr(config, 'STOCK_V3_MODEL_FORMAT', 'pt'),
+        'imgsz': getattr(config, 'STOCK_V3_IMGSZ', 640),
+        'conf': getattr(config, 'STOCK_V3_CONFIDENCE_THRESHOLD', 0.618)
+    },
     'bill': {
         'dir': 'models/bill',
-        'format': getattr(config, 'BILL_MODEL_FORMAT', 'onnx'),
+        'format': getattr(config, 'BILL_MODEL_FORMAT', 'pt'),
         'imgsz': getattr(config, 'BILL_MODEL_IMGSZ', 640),
         'conf': getattr(config, 'BILL_CONFIDENCE_THRESHOLD', 0.618)
     },
     'invoice1': {
         'dir': 'models/vat',
-        'format': getattr(config, 'VAT_MODEL_FORMAT', 'onnx'),
+        'format': getattr(config, 'VAT_MODEL_FORMAT', 'pt'),
         'imgsz': getattr(config, 'VAT_IMGSZ', 640),
         'conf': getattr(config, 'VAT_CONFIDENCE_THRESHOLD', 0.618)
     },
     'invoice2': {
         'dir': 'models/vat_2',
-        'format': getattr(config, 'VAT_2_MODEL_FORMAT', 'onnx'),
+        'format': getattr(config, 'VAT_2_MODEL_FORMAT', 'pt'),
         'imgsz': getattr(config, 'VAT_2_IMGSZ', 640),
         'conf': getattr(config, 'VAT_2_CONFIDENCE_THRESHOLD', 0.618)
     }

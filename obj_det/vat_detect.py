@@ -69,17 +69,10 @@ if config.GPU:
 else:
     device = 'cpu'
 
-try:
-    model = load_yolo_model(model_dir, model_name='best', model_format=model_format, task='detect')
-except Exception as e:
-    logger.error(f"加载 YOLOv11 模型失败: {e}")
-    # 回退到直接指定路径的方式（兼容旧配置）
-    pub_weights = f"models/vat/best.onnx"
-    logger.warning(f"使用回退方式加载模型: {pub_weights}")
-    model = YOLO(pub_weights, task='detect')
+model = load_yolo_model(model_dir, model_name='best', model_format='pt', task='detect')
 
 # 置信度阈值（可配置，默认 0.618）
-CONFIDENCE_THRESHOLD = getattr(config, "VAT_CONFIDENCE_THRESHOLD", 0.618)
+CONFIDENCE_THRESHOLD = getattr(config, "VAT_CONFIDENCE_THRESHOLD", 0.5)
 
 # 跳过 OCR 的标签（仅检测，不识别文本）
 SKIP_OCR_LABELS = {'qrcode', 'seal_1', 'seal_2'}
@@ -105,14 +98,14 @@ def judge_invoice_type(title, invoice):
         else:
             invoice_type = "31"
     else:
-        if "专用" in title:
-            if '电子' in title:
+        if "专" in title or '用' in title:
+            if '电' in title:
                 invoice_type = '08'
             else:
                 invoice_type = '01'
             invoice['invoice_type'] = "01"
-        if "普通" in title:
-            if '电子' in title:
+        if "普" in title or '通' in title:
+            if '电' in title:
                 invoice_type = '10'
             else:
                 invoice_type = '04'

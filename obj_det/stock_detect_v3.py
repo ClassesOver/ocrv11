@@ -36,17 +36,16 @@ converter = {
 }
 
 # 模型目录与输入尺寸
-model_dir = os.getenv("STOCK_V1_MODEL_DIR", "models/stock_1")
-model_format = getattr(config, "STOCK_V1_MODEL_FORMAT", None)  # None 表示自动选择
-pub_img_size = getattr(config, "STOCK_V1_IMGSZ", 640)
+model_dir = os.getenv("STOCK_V3_MODEL_DIR", "models/stock_3")
+model_format = getattr(config, "STOCK_V3_MODEL_FORMAT", None)  # None 表示自动选择
+pub_img_size = getattr(config, "STOCK_V3_IMGSZ", 640)
 
 # 初始化 YOLOv11 模型（根据配置自动选择 best.pt、best.onnx 或 best_openvino_model）
 device = getattr(config, "GPUID", 0) if getattr(config, "GPU", False) else "cpu"
-
 model = load_yolo_model(model_dir, model_name='best', model_format='pt', task='detect')
 
 # 置信度阈值（可配置，默认 0.618）
-CONFIDENCE_THRESHOLD = getattr(config, "STOCK_V1_CONFIDENCE_THRESHOLD", 0.5)
+CONFIDENCE_THRESHOLD = getattr(config, "STOCK_V3_CONFIDENCE_THRESHOLD", 0.5)
 
 # 跳过 OCR 的标签（仅检测，不识别文本）
 SKIP_OCR_LABELS = {'qrcode', 'line', 'seal', 'handled_by', 'verified_by', 'accountant', 'col1', 'col2'}
@@ -119,12 +118,12 @@ def _process_label_text(label: str, text: str) -> str:
     return text.strip()
 
 
-def stock_detection(img_numpy, stock=None, context=None, saveImage=False):
+def stock_detection_v3(img_numpy, stock=None, context=None, saveImage=False):
     """
-    入库单检测与识别（材料/总务入库单）
+    入库单检测与识别（总务入库单）
     参考 vat_detect 的 ultralytics 推理流程，批量 OCR 提升吞吐。
     """
-    logger.debug("开始入库单检测（stock_v1）")
+    logger.debug("开始总务入库单检测（stock_v3）")
     if stock is None:
         stock = {}
     if context is None:
@@ -341,7 +340,7 @@ def stock_detection(img_numpy, stock=None, context=None, saveImage=False):
         stock.setdefault('total_amount', stock.get('total') or stock.get('total2') or stock.get('total3') or '¥ 0.00')
         stock.setdefault('page', '1/1')
         stock['_stock_detected'] = True
-        stock['_stock_v1_detected'] = True
+        stock['_stock_v3_detected'] = True
     else:
         logger.warning("未检测到有效的入库单信息")
     return stock

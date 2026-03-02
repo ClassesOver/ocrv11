@@ -35,17 +35,11 @@ pub_img_size = getattr(config, "STOCK_V2_IMGSZ", 640)
 
 # 初始化 YOLOv11 模型（根据配置自动选择 best.pt、best.onnx 或 best_openvino_model）
 device = config.GPUID if getattr(config, "GPU", False) else "cpu"
-try:
-    model = load_yolo_model(model_dir, model_name='best', model_format=model_format, task='detect')
-except Exception as e:
-    logger.error(f"加载 YOLOv11 模型失败: {e}")
-    # 回退到直接指定路径的方式（兼容旧配置）
-    pub_weights = os.getenv("STOCK_V2_WEIGHTS", "models/stock_2/best.pt")
-    logger.warning(f"使用回退方式加载模型: {pub_weights}")
-    model = YOLO(pub_weights, task='detect')
+
+model = load_yolo_model(model_dir, model_name='best', model_format='pt', task='detect')
 
 # 置信度阈值（可配置，默认 0.618）
-CONFIDENCE_THRESHOLD = getattr(config, "STOCK_V2_CONFIDENCE_THRESHOLD", 0.618)
+CONFIDENCE_THRESHOLD = getattr(config, "STOCK_V2_CONFIDENCE_THRESHOLD", 0.5)
 
 # 仅检测不做 OCR 的标签
 SKIP_OCR_LABELS = {'qrcode', 'line', 'director', 'purchaser', 'verified_by', 'accountant'}
