@@ -31,24 +31,6 @@ _detection_models = {}
 
 # 分类结果到检测模型路径的映射
 CLASS_TO_MODEL_MAP = {
-    'stock1': {
-        'dir': 'models/stock_1',
-        'format': getattr(config, 'STOCK_V1_MODEL_FORMAT', 'pt'),
-        'imgsz': getattr(config, 'STOCK_V1_IMGSZ', 640),
-        'conf': getattr(config, 'STOCK_V1_CONFIDENCE_THRESHOLD', 0.618)
-    },
-    'stock2': {
-        'dir': 'models/stock_2',
-        'format': getattr(config, 'STOCK_V2_MODEL_FORMAT', 'pt'),
-        'imgsz': getattr(config, 'STOCK_V2_IMGSZ', 640),
-        'conf': getattr(config, 'STOCK_V2_CONFIDENCE_THRESHOLD', 0.618)
-    },
-    'stock3': {
-        'dir': 'models/stock_3',
-        'format': getattr(config, 'STOCK_V3_MODEL_FORMAT', 'pt'),
-        'imgsz': getattr(config, 'STOCK_V3_IMGSZ', 640),
-        'conf': getattr(config, 'STOCK_V3_CONFIDENCE_THRESHOLD', 0.618)
-    },
     'bill': {
         'dir': 'models/bill',
         'format': getattr(config, 'BILL_MODEL_FORMAT', 'pt'),
@@ -112,7 +94,7 @@ def _load_detection_model(class_name: str) -> Tuple[Optional[object], Optional[D
     根据分类结果加载对应的检测模型（懒加载）
     
     Args:
-        class_name: 分类结果类别名称（如 'stock1', 'stock2', 'bill' 等）
+        class_name: 分类结果类别名称（如 'bill', 'invoice1', 'invoice2' 等）
         
     Returns:
         (模型对象, 模型配置字典)，如果模型不存在则返回 (None, None)

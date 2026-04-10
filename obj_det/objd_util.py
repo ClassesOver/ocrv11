@@ -323,99 +323,8 @@ def detection_img(img, saveImage=False):
 
 
 def _detection_img(img, saveImage=False):
-    # img = rotate(img)
     invoice = {'invoice_type': ''}
-    stock = {}
-    result = {'type': '03', 'invoice': invoice, 'stock': stock}
-
-    # 先使用 YOLOv 分类模型进行目标分类检测
-    confidence_threshold = getattr(config, 'CLASSIFICATION_CONFIDENCE_THRESHOLD', 0.618)
-    classification_result = classify_image(img, confidence_threshold=confidence_threshold)
-    if classification_result:
-        predicted_class = classification_result.get('predicted_class', '').lower()
-        confidence = classification_result.get('confidence', 0.0)
-        
-        logger.debug(f"分类检测: {predicted_class}, 置信度: {confidence:.2f}")
-        
-        # 根据分类结果选择对应的检测流程
-        # 类别名称映射：invoice, stock1, stock2, bill
-        if predicted_class == 'stock1':
-            # 入库单 v1
-            try:
-                result['stock'] = stock = {}
-                context.stock_v1(img, stock, context, saveImage=saveImage)
-                result['type'] = '02'
-                result['invoice'] = {}
-                logger.info(result)
-                logger.debug(f"通过分类检测直接识别为入库单v1 (stock1)")
-                return result
-            except Exception as e:
-                logger.error(traceback.format_exc())
-        elif predicted_class == 'stock2':
-            # 入库单 v2
-            try:
-                result['stock'] = stock = {}
-                context.stock_v2(img, stock, context, saveImage=saveImage)
-                result['type'] = '02'
-                result['invoice'] = {}
-                logger.info(result)
-                logger.debug(f"通过分类检测直接识别为入库单v2 (stock2)")
-                return result
-            except Exception as e:
-                logger.error(traceback.format_exc())
-        elif predicted_class == 'stock3':
-            # 总务入库单 v3
-            try:
-                result['stock'] = stock = {}
-                context.stock_v3(img, stock, context, saveImage=saveImage)
-                result['type'] = '02'
-                result['invoice'] = {}
-                logger.info(result)
-                logger.debug(f"通过分类检测直接识别为入库单v3 (stock3)")
-                return result
-            except Exception as e:
-                logger.error(traceback.format_exc())
-        elif predicted_class == 'bill':
-            # 财务票据
-            try:
-                result['invoice'] = invoice = {'invoice_type': ''}
-                context.bill(img, invoice, context, saveImage=saveImage)
-                if is_bill(invoice) and invoice['invoice_type']:
-                    result['stock'] = {}
-                    result['type'] = '01'
-                    logger.info(result)
-                    logger.debug(f"通过分类检测直接识别为财务票据 (bill)")
-                    return result
-            except Exception as e:
-                logger.error(traceback.format_exc())
-        elif 'invoice' in predicted_class:
-            logger.debug(f"通过分类检测直接识别为发票 ({predicted_class})")
-            try:
-                result['invoice'] = invoice = {'invoice_type': ''}
-                context.vat_v2(img, invoice, context, saveImage=saveImage)
-                invoice_number = invoice.get('invoice_number')
-                if invoice_number:
-                    if len(invoice_number) < 20:
-                        result['invoice'] = invoice = {'invoice_type': ''}
-                        return context.vat(img, invoice, context, saveImage=saveImage)
-                if invoice['invoice_type']:
-                    result['stock'] = {}
-                    result['type'] = '01'
-                    logger.info(result)
-                    return result
-            except Exception as e:
-                logger.error(traceback.format_exc())
-        else:
-            # 分类结果不明确或置信度较低，继续使用原有检测流程
-            logger.debug(f"分类结果不明确 ({predicted_class})，使用原有检测流程")
-
-    if invoice['invoice_type']:
-        result['stock'] = {}
-        result['type'] = '01'
-    else:
-        if stock:
-            result['invoice'] = {}
-            result['type'] = '02'
+    result = {'type': '03', 'invoice': invoice}
     logger.info(result)
     return result
 
@@ -423,11 +332,9 @@ def _detection_img(img, saveImage=False):
 def process_vat_invoice_image(fp):
     rotate_fp = rotate(fp)
     invoice = {}
-    result = {'is_stock': False, 'invoice': invoice, 'stock': {}}
+    result = {'invoice': invoice}
     s = datetime.datetime.now()
     context.title(file_name=rotate_fp, invoice=result, context=context)
-    if result['is_stock']:
-        return result
     e = datetime.datetime.now()
     if invoice:
         invoice_type = invoice['invoice_type']
