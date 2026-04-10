@@ -10,7 +10,7 @@ MANIFEST
 dist/
 build/
 *.whl
-
+ .codex-tmp
 # 虚拟环境
 venv/
 env/
